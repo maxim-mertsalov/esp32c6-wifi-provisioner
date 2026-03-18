@@ -1,5 +1,6 @@
 mod handlers;
 mod advertiser;
+mod utils;
 
 use embassy_futures::{select::select};
 use embassy_time::{Duration};
@@ -10,8 +11,9 @@ use static_cell::StaticCell;
 use trouble_host::prelude::*;
 use crate::comm::ble::handlers::{gatt_events::gatt_events_task, notifier::custom_task};
 use crate::comm::ble::advertiser::advertise;
-use crate::comm::wifi::utils::ENTIRE_SSID_PAGE_SIZE;
+use crate::comm::wifi::models::ENTIRE_SSID_PAGE_SIZE;
 use crate::errors::ble_error::BleError;
+use crate::prelude::AppState;
 
 /// Max number of connections
 pub const BLE_CONNECTIONS_MAX: usize = 1;
@@ -26,13 +28,13 @@ mod ble_gatt_server_uuids {
     pub const WIFI_SCAN_CMD: Uuid = uuid!("d88a7d46-9313-4240-915a-a2320fa3a6e5");
     pub const WIFI_GET_STATUS: Uuid = uuid!("878b58f2-4d44-4178-ae8f-a9e56d607e9e");
 
-    pub const WIFI_GET_LIST_COUNT: Uuid = uuid!("0ce70db8-be92-4160-a2d3-588e8b248b95");
+    pub const WIFI_GET_PAGES_COUNT: Uuid = uuid!("0ce70db8-be92-4160-a2d3-588e8b248b95");
     pub const WIFI_SELECT_PAGE: Uuid = uuid!("6839a19d-8a4b-4691-89cc-7a312c1efe54");
     pub const WIFI_GET_PAGE_DATA: Uuid = uuid!("9c0c07d7-0435-4a9d-b999-369c8f646252");
 
-    pub const WIFI_SET_SSID_INDEX: Uuid = uuid!("824f9460-5d76-4498-a549-0020100907bc");
-    pub const WIFI_SET_PASSWORD: Uuid = uuid!("273d7528-c072-4fe6-b29b-c1e468f039f2");
-    pub const WIFI_CONNECT: Uuid = uuid!("2c1f2d97-5c53-435b-940c-c36cf349ca53");
+    // pub const WIFI_SET_SSID_INDEX: Uuid = uuid!("824f9460-5d76-4498-a549-0020100907bc");
+    // pub const WIFI_SET_PASSWORD: Uuid = uuid!("273d7528-c072-4fe6-b29b-c1e468f039f2");
+    // pub const WIFI_CONNECT: Uuid = uuid!("2c1f2d97-5c53-435b-940c-c36cf349ca53");
 
     pub const STATUS_CODE: Uuid = uuid!("7df744c9-3a9b-4df6-80f3-ec8c3b77338e");
 }
@@ -56,9 +58,9 @@ pub struct GeneralService {
     wifi_get_status: u8, // 0 - Idle, 1 - Scanning, 2 - Connected
 
     // Wi-Fi scanning
-    #[characteristic(uuid = ble_gatt_server_uuids::WIFI_GET_LIST_COUNT, read, notify)]
-    #[descriptor(uuid = descriptors::CHARACTERISTIC_USER_DESCRIPTION, read, value = "wifi_get_list_count")]
-    wifi_get_list_count: u8,
+    #[characteristic(uuid = ble_gatt_server_uuids::WIFI_GET_PAGES_COUNT, read, notify)]
+    #[descriptor(uuid = descriptors::CHARACTERISTIC_USER_DESCRIPTION, read, value = "wifi_get_pages_count")]
+    wifi_get_pages_count: u8,
 
     #[characteristic(uuid = ble_gatt_server_uuids::WIFI_SELECT_PAGE, write)]
     #[descriptor(uuid = descriptors::CHARACTERISTIC_USER_DESCRIPTION, read, value = "wifi_select_page")]
@@ -108,9 +110,9 @@ pub fn init_gatt_server(
 
     static SERVER_CELL: StaticCell<BleGATTServer<'static>> = StaticCell::new();
     let server = BleGATTServer::new_with_config(GapConfig::Peripheral(PeripheralConfig {
-        name: "CatFeederBarsik",
+        name: "ESP32 board",
         appearance: &appearance::control_device::GENERIC_CONTROL_DEVICE,
-    })).map_err(|e| BleError::ServerInitializationFailed(e)).unwrap();
+    })).map_err(BleError::ServerInitializationFailed).unwrap();
 
     let server_ref = SERVER_CELL.init(server);
 
@@ -120,19 +122,20 @@ pub fn init_gatt_server(
 pub async fn ble_run(
     server: &'static BleGATTServer<'_>,
     peripheral: &mut Peripheral<'static, BleController, DefaultPacketPool>,
-    stack: &'static BleStack
+    stack: &'static BleStack,
+    app_state: AppState
 ) {
     // Use with_timeout to limit how long we wait for a phone to connect
     let ad_result = embassy_time::with_timeout(
         Duration::from_secs(30),
-        advertise("CatFeederBarsik", peripheral, server)
+        advertise("ESP32 board", peripheral, server)
     ).await;
 
     match ad_result {
         Ok(Ok(conn)) => {
             info!("Connection established! Entering active mode.");
-            let a = gatt_events_task(&server, &conn);
-            let b = custom_task(&server, &conn, &stack);
+            let a = gatt_events_task(server, &conn, app_state);
+            let b = custom_task(server, &conn, stack);
             select(a, b).await;
             info!("Disconnected. Returning to IDLE.");
         }

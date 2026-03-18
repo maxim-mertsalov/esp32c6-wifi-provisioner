@@ -5,7 +5,7 @@ use crate::board::Board;
 use crate::comm::ble::{ble_task, init_gatt_server, ble_run};
 
 pub mod state;
-
+pub mod runner;
 
 pub async fn main_control_loop(board: Board, state: state::AppState) {
     let (server, mut peripheral, runner, stack) = init_gatt_server(board.ble_controller);
@@ -23,7 +23,7 @@ pub async fn main_control_loop(board: Board, state: state::AppState) {
             info!("Button Pressed! Bluetooth turning ON for 30 seconds...");
             
             // Block functions until the BLE task finishes (i.e. a phone connects and then disconnects, or 30 seconds pass)
-            ble_run(server, &mut peripheral, stack).await;
+            ble_run(server, &mut peripheral, stack, state).await;
 
             // The loop repeats, going back to the "IDLE" state
         }

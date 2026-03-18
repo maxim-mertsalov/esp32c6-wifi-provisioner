@@ -35,6 +35,7 @@ async fn main(_s: Spawner) {
 
     let state = AppState::default();
 
+    _s.spawn(runner_task(state)).expect("Couldn't spawn task");
 
     main_control_loop(board, state).await;
 }

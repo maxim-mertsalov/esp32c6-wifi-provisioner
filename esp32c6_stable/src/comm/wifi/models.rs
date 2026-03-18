@@ -1,15 +1,18 @@
 
 
 pub const MAX_SSID_LEN: usize = 64;
+pub const MAX_PASSWORD_LEN: usize = 64;
 pub const SHORT_SSID_LEN: usize = 16;
 pub const SERIALIZED_SSID_LEN: usize = SHORT_SSID_LEN + 1; // SSID + RSSI
 pub const MAX_SSID_PER_PAGE: usize = 5;
 pub const ENTIRE_SSID_PAGE_SIZE: usize = SERIALIZED_SSID_LEN * MAX_SSID_PER_PAGE;
 
+pub const MAX_NETWORKS_ON_DEVICE: usize = 24;
+
 #[derive(Debug, Clone)]
 pub struct WifiCredentials {
-    pub ssid: heapless::String<64>,
-    pub password: heapless::String<64>,
+    pub ssid: heapless::String<MAX_SSID_LEN>,
+    pub password: heapless::String<MAX_PASSWORD_LEN>,
     pub connection_type: WifiConnectionType
 }
 
@@ -31,6 +34,7 @@ pub enum WifiConnectionType {
 }
 
 
+#[derive(Debug, Clone)]
 pub struct WifiScanResult {
     pub ssid: heapless::String<MAX_SSID_LEN>,
     pub rssi: u8

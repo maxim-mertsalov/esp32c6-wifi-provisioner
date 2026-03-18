@@ -11,5 +11,6 @@ pub mod prelude {
     pub use crate::app::state::AppState;
 
     pub use crate::app::main_control_loop;
+    pub use crate::app::runner::runner_task;
 }
 
