@@ -23,6 +23,9 @@ esp-rtos = { version = "0.2.0", features = [
 esp-bootloader-esp-idf = { version = "0.4.0", features = ["esp32c6", "log-04"] }
 log                    = "0.4.27"
 
+esp-storage = { version = "0.8.1", features = ["esp32c6"] }
+embedded-storage = "0.3.1"
+
 embassy-net = { version = "0.7.1", features = [
   "dhcpv4",
   "log",
@@ -69,6 +72,8 @@ smoltcp = { version = "0.12.0", default-features = false, features = [
   "socket-tcp",
   "socket-udp",
 ] }
+blocking-network-stack = { git = "https://github.com/bjoernQ/blocking-network-stack.git", rev = "b3ecefc" }
+
 trouble-host = { version = "0.5.0", features = [
   "gatt",
   "default-packet-pool-mtu-255",

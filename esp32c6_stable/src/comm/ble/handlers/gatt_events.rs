@@ -121,13 +121,13 @@ pub async fn match_write_events<P: PacketPool>(event: &WriteEvent<'_, '_, P>, se
     if let Some(action) = server.handle_action(event.handle()) {
         match action {
             CharacteristicAction::WifiScanCmd => {
-                let sender = app_state.current_command.sender();
-                sender.send(Some(AppStateCommand::WiFiStartScanning));
+                let sender = app_state.runner_command.sender();
+                sender.send(AppStateCommand::WiFiStartScanning).await;
             }
             CharacteristicAction::WifiSelectPage => {
                 let page = event.data()[0];
-                let sender = app_state.current_command.sender();
-                sender.send(Some(AppStateCommand::WiFiSelectScannedPage(page)));
+                let sender = app_state.runner_command.sender();
+                sender.send(AppStateCommand::WiFiSelectScannedPage(page)).await;
                 info!("Received WifiSelectPage command with page: {:?}", page);
             }
             _ => {

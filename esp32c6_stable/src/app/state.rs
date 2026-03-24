@@ -1,10 +1,11 @@
 use portable_atomic::{AtomicU8};
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
+use embassy_sync::channel::Channel;
 use embassy_sync::watch::Watch;
 use heapless::Vec;
 use static_cell::StaticCell;
-use crate::comm::wifi::models::{WifiCredentials, WifiScanResult, MAX_NETWORKS_ON_DEVICE};
-
+use crate::comm::wifi::models::{WifiCredentials, WifiScanResult, MAX_NETWORKS_ON_DEVICE, MAX_PASSWORD_LEN};
+use crate::comm::wifi::runner::WifiRunnerCommand;
 
 #[derive(Copy, Clone)]
 pub struct AppState {
@@ -16,15 +17,19 @@ pub struct AppState {
     pub server_url: &'static Watch<CriticalSectionRawMutex, Option<heapless::String<64>>, 4>,
 
     pub status_code: &'static AtomicU8,
-    pub current_command:  &'static Watch<CriticalSectionRawMutex, Option<AppStateCommand>, 4>,
+    pub runner_command:  &'static Channel<CriticalSectionRawMutex, AppStateCommand, 4>,
+    pub wifi_command:  &'static Channel<CriticalSectionRawMutex, WifiRunnerCommand, 4>,
 }
 
 #[derive(Copy, Clone)]
 pub enum AppStateCommand {
     WiFiStartScanning,
     WiFiSelectScannedPage(u8),
+
     WiFiSendSSIDIndex(u8),
-    WiFiSendPassword([u8; 64]),
+    WiFiSendPassword([u8; MAX_PASSWORD_LEN]),
+
+    WifiTryConnect,
 
     SendServerUrl([u8; 64]),
     SendGetRequest,
@@ -41,7 +46,9 @@ impl Default for AppState {
         static SERVER_URL: StaticCell<Watch<CriticalSectionRawMutex, Option<heapless::String<64>>, 4>> = StaticCell::new();
 
         static STATUS_CODE: StaticCell<AtomicU8> = StaticCell::new();
-        static CURRENT_COMMAND: StaticCell<Watch<CriticalSectionRawMutex, Option<AppStateCommand>, 4>> = StaticCell::new();
+        static RUNNER_COMMAND: StaticCell<Channel<CriticalSectionRawMutex, AppStateCommand, 4>> = StaticCell::new();
+        static WIFI_COMMAND: StaticCell<Channel<CriticalSectionRawMutex, WifiRunnerCommand, 4>> = StaticCell::new();
+
 
         AppState {
             wifi_config: WIFI_CONFIG.init(Watch::new_with(None)),
@@ -50,7 +57,8 @@ impl Default for AppState {
             current_page: CURRENT_PAGE_ID.init(AtomicU8::new(0)),
             server_url: SERVER_URL.init(Watch::new_with(None)),
             status_code: STATUS_CODE.init(AtomicU8::new(0)),
-            current_command: CURRENT_COMMAND.init(Watch::new_with(None)),
+            runner_command: RUNNER_COMMAND.init(Channel::new()),
+            wifi_command: WIFI_COMMAND.init(Channel::new()),
         }
     }
 }

@@ -6,37 +6,35 @@ use crate::prelude::AppState;
 pub async fn runner_task(app_state: AppState) {
     info!("Starting runner task");
 
-    let mut receiver = app_state.current_command.receiver()
-        .expect("No command receivers");
+    let receiver = app_state.runner_command.receiver();
 
     loop {
         // REQUIRED! If you don't await this, function will take entire processor
-        let command_opt = receiver.changed().await;
+        let command = receiver.receive().await;
 
-        if let Some(command) = command_opt {
-            match command {
-                AppStateCommand::WiFiStartScanning => {
-                    info!("Wifi start scanning");
-                }
-                AppStateCommand::WiFiSelectScannedPage(page) => {
-                    info!("WiFi select scanned page: {}", page);
-                }
-                AppStateCommand::WiFiSendSSIDIndex(index) => {
-                    info!("WiFi send SSID index: {}", index);
-                }
-                AppStateCommand::WiFiSendPassword(password) => {
-                    info!("WiFi send password: {:?}", password);
-                }
-                AppStateCommand::SendServerUrl(_) => {
-                    info!("Sending server URL");
-                }
-                AppStateCommand::SendGetRequest => {
-                    info!("Sending get request");
-                }
-                AppStateCommand::TestConnection => {
-                    info!("Testing connection");
-                },
+        match command {
+            AppStateCommand::WiFiStartScanning => {
+                info!("Wifi start scanning");
             }
+            AppStateCommand::WiFiSelectScannedPage(page) => {
+                info!("WiFi select scanned page: {}", page);
+            }
+            AppStateCommand::WiFiSendSSIDIndex(index) => {
+                info!("WiFi send SSID index: {}", index);
+            }
+            AppStateCommand::WiFiSendPassword(password) => {
+                info!("WiFi send password: {:?}", password);
+            }
+            AppStateCommand::SendServerUrl(_) => {
+                info!("Sending server URL");
+            }
+            AppStateCommand::SendGetRequest => {
+                info!("Sending get request");
+            }
+            AppStateCommand::TestConnection => {
+                info!("Testing connection");
+            },
+            _ => {}
         }
 
     }
