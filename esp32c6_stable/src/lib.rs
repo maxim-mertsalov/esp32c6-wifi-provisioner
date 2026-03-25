@@ -12,5 +12,7 @@ pub mod prelude {
 
     pub use crate::app::main_control_loop;
     pub use crate::app::runner::runner_task;
+
+    pub use crate::comm::wifi::runner::wifi_runner;
 }
 

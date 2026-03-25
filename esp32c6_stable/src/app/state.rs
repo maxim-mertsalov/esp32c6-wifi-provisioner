@@ -4,6 +4,7 @@ use embassy_sync::channel::Channel;
 use embassy_sync::watch::Watch;
 use heapless::Vec;
 use static_cell::StaticCell;
+use crate::app::runner::RunnerCommand;
 use crate::comm::wifi::models::{WifiCredentials, WifiScanResult, MAX_NETWORKS_ON_DEVICE, MAX_PASSWORD_LEN};
 use crate::comm::wifi::runner::WifiRunnerCommand;
 
@@ -17,24 +18,8 @@ pub struct AppState {
     pub server_url: &'static Watch<CriticalSectionRawMutex, Option<heapless::String<64>>, 4>,
 
     pub status_code: &'static AtomicU8,
-    pub runner_command:  &'static Channel<CriticalSectionRawMutex, AppStateCommand, 4>,
+    pub runner_command:  &'static Channel<CriticalSectionRawMutex, RunnerCommand, 4>,
     pub wifi_command:  &'static Channel<CriticalSectionRawMutex, WifiRunnerCommand, 4>,
-}
-
-#[derive(Copy, Clone)]
-pub enum AppStateCommand {
-    WiFiStartScanning,
-    WiFiSelectScannedPage(u8),
-
-    WiFiSendSSIDIndex(u8),
-    WiFiSendPassword([u8; MAX_PASSWORD_LEN]),
-
-    WifiTryConnect,
-
-    SendServerUrl([u8; 64]),
-    SendGetRequest,
-
-    TestConnection,
 }
 
 impl Default for AppState {
@@ -46,7 +31,7 @@ impl Default for AppState {
         static SERVER_URL: StaticCell<Watch<CriticalSectionRawMutex, Option<heapless::String<64>>, 4>> = StaticCell::new();
 
         static STATUS_CODE: StaticCell<AtomicU8> = StaticCell::new();
-        static RUNNER_COMMAND: StaticCell<Channel<CriticalSectionRawMutex, AppStateCommand, 4>> = StaticCell::new();
+        static RUNNER_COMMAND: StaticCell<Channel<CriticalSectionRawMutex, RunnerCommand, 4>> = StaticCell::new();
         static WIFI_COMMAND: StaticCell<Channel<CriticalSectionRawMutex, WifiRunnerCommand, 4>> = StaticCell::new();
 
 

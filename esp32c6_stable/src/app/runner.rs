@@ -1,7 +1,26 @@
+use core::sync::atomic::Ordering;
 use log::{*};
-use crate::app::state::AppStateCommand;
+use crate::comm::wifi::models::MAX_PASSWORD_LEN;
+use crate::comm::wifi::runner::WifiRunnerCommand;
 use crate::prelude::AppState;
 
+#[derive(Copy, Clone)]
+pub enum RunnerCommand {
+    WiFiStartScanning,
+    WiFiSelectScannedPage(u8),
+
+    WiFiSendSSIDIndex(u8),
+    WiFiSendPassword([u8; MAX_PASSWORD_LEN]),
+
+    WifiTryConnect,
+
+    SendServerUrl([u8; 64]),
+    SendGetRequest,
+
+    TestConnection,
+}
+
+/// Main control loop, that switches commands between other threads
 #[embassy_executor::task]
 pub async fn runner_task(app_state: AppState) {
     info!("Starting runner task");
@@ -13,25 +32,28 @@ pub async fn runner_task(app_state: AppState) {
         let command = receiver.receive().await;
 
         match command {
-            AppStateCommand::WiFiStartScanning => {
+            RunnerCommand::WiFiStartScanning => {
                 info!("Wifi start scanning");
+                app_state.wifi_command.sender()
+                    .send(WifiRunnerCommand::Scan).await;
             }
-            AppStateCommand::WiFiSelectScannedPage(page) => {
+            RunnerCommand::WiFiSelectScannedPage(page) => {
                 info!("WiFi select scanned page: {}", page);
+                app_state.current_page.store(page, Ordering::Relaxed);
             }
-            AppStateCommand::WiFiSendSSIDIndex(index) => {
+            RunnerCommand::WiFiSendSSIDIndex(index) => {
                 info!("WiFi send SSID index: {}", index);
             }
-            AppStateCommand::WiFiSendPassword(password) => {
+            RunnerCommand::WiFiSendPassword(password) => {
                 info!("WiFi send password: {:?}", password);
             }
-            AppStateCommand::SendServerUrl(_) => {
+            RunnerCommand::SendServerUrl(_) => {
                 info!("Sending server URL");
             }
-            AppStateCommand::SendGetRequest => {
+            RunnerCommand::SendGetRequest => {
                 info!("Sending get request");
             }
-            AppStateCommand::TestConnection => {
+            RunnerCommand::TestConnection => {
                 info!("Testing connection");
             },
             _ => {}

@@ -4,6 +4,7 @@ use esp_hal::peripherals::Peripherals;
 use esp_hal::rng::Rng;
 use esp_hal::timer::timg::TimerGroup;
 use esp_radio::{ble, wifi};
+use esp_radio::wifi::{ClientConfig, ModeConfig};
 use static_cell::StaticCell;
 use log::*;
 
@@ -12,8 +13,8 @@ pub struct Board {
     pub rgb_led: Output<'static>,
 
     // Wi-Fi
-    pub wifi_controller: wifi::WifiController<'static>,
-    pub wifi_device: wifi::WifiDevice<'static>,
+    pub wifi_controller: Option<wifi::WifiController<'static>>,
+    pub wifi_device: Option<wifi::WifiDevice<'static>>,
 
     // Bluetooth
     pub ble_controller: ExternalController<ble::controller::BleConnector<'static>, 1>,
@@ -46,12 +47,14 @@ impl Board {
 
 
         // Wifi
-        let (wifi_controller, wifi_interfaces) = wifi::new(
+        let (mut wifi_controller, wifi_interfaces) = wifi::new(
             radio,
             peripherals.WIFI,
             wifi::Config::default()
         ).unwrap();
         let device = wifi_interfaces.sta;
+        wifi_controller.set_config(&ModeConfig::Client(ClientConfig::default()))
+            .expect("Failed to set Wi-Fi mode");
 
 
         // RGB LED
@@ -59,8 +62,8 @@ impl Board {
 
         Self {
             rgb_led,
-            wifi_controller,
-            wifi_device: device,
+            wifi_controller: Some(wifi_controller),
+            wifi_device: Some(device),
             ble_controller: controller,
             rng,
         }

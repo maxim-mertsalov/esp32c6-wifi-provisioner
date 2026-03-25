@@ -2,7 +2,7 @@ use core::sync::atomic::Ordering;
 use log::{info, warn};
 use trouble_host::gatt::{GattConnection, GattConnectionEvent, GattEvent, ReadEvent, WriteEvent};
 use trouble_host::{Error, PacketPool};
-use crate::app::state::AppStateCommand;
+use crate::app::runner::RunnerCommand;
 use crate::comm::ble::BleGATTServer;
 use crate::comm::ble::utils::char_action::CharacteristicAction;
 use crate::comm::wifi::models::{MAX_SSID_PER_PAGE, SHORT_SSID_LEN};
@@ -65,7 +65,9 @@ pub async fn match_read_events<P: PacketPool>(event: &ReadEvent<'_, '_, P>, serv
 
                 let scan_data = receiver.try_get()
                     .expect("[gatt] error receiving receiver for wifi scan data").len();
-                let pages = (scan_data / MAX_SSID_PER_PAGE) as u8;
+
+                let optional_page = if scan_data % MAX_SSID_PER_PAGE == 0 { 0 } else { 1 };
+                let pages = ((scan_data / MAX_SSID_PER_PAGE) + optional_page) as u8;
 
                 server.general_service.wifi_get_pages_count.set(server, &pages)
                     .expect("[gatt] error getting status");
@@ -79,6 +81,8 @@ pub async fn match_read_events<P: PacketPool>(event: &ReadEvent<'_, '_, P>, serv
 
                 let current_page = app_state.current_page.load(Ordering::Relaxed) as usize;
 
+                info!("[gatt] selected page: {}", current_page);
+
                 let mut res = [0u8; MAX_SSID_PER_PAGE * (SHORT_SSID_LEN + 1)];
 
                 let from_wifi = current_page * MAX_SSID_PER_PAGE;
@@ -87,12 +91,14 @@ pub async fn match_read_events<P: PacketPool>(event: &ReadEvent<'_, '_, P>, serv
                 let mut index = 0;
                 for i in from_wifi..to_wifi {
                     if let Some(scan_res) = scan_data.get(i) {
+                        info!("[gatt] send wifi: {}", scan_res.ssid);
+
                         let new_len = SHORT_SSID_LEN.min(scan_res.ssid.len());
                         let short_ssid = scan_res.ssid.as_bytes();
 
                         res[index..(index + new_len)].copy_from_slice(short_ssid);
                         index += SHORT_SSID_LEN;
-                        res[index] = scan_res.rssi;
+                        res[index] = scan_res.rssi as u8;
                         index += 1;
                     }
                 }
@@ -122,13 +128,13 @@ pub async fn match_write_events<P: PacketPool>(event: &WriteEvent<'_, '_, P>, se
         match action {
             CharacteristicAction::WifiScanCmd => {
                 let sender = app_state.runner_command.sender();
-                sender.send(AppStateCommand::WiFiStartScanning).await;
+                sender.send(RunnerCommand::WiFiStartScanning).await;
             }
             CharacteristicAction::WifiSelectPage => {
                 let page = event.data()[0];
+
                 let sender = app_state.runner_command.sender();
-                sender.send(AppStateCommand::WiFiSelectScannedPage(page)).await;
-                info!("Received WifiSelectPage command with page: {:?}", page);
+                sender.send(RunnerCommand::WiFiSelectScannedPage(page)).await;
             }
             _ => {
                 info!("incorrect gatt event action: {}", event.handle());

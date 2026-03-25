@@ -131,6 +131,7 @@ pub async fn ble_run(
         advertise("ESP32 board", peripheral, server)
     ).await;
 
+    //TODO: Move to the task, when connection is established
     match ad_result {
         Ok(Ok(conn)) => {
             info!("Connection established! Entering active mode.");

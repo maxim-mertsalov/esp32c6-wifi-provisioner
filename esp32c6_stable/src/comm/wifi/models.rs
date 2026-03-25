@@ -37,11 +37,11 @@ pub enum WifiConnectionType {
 #[derive(Debug, Clone)]
 pub struct WifiScanResult {
     pub ssid: heapless::String<MAX_SSID_LEN>,
-    pub rssi: u8
+    pub rssi: i8
 }
 
 impl WifiScanResult {
-    pub fn new(ssid: heapless::String<MAX_SSID_LEN>, rssi: u8) -> Self {
+    pub fn new(ssid: heapless::String<MAX_SSID_LEN>, rssi: i8) -> Self {
         Self { ssid, rssi }
     }
 
@@ -53,8 +53,17 @@ impl WifiScanResult {
         for i in 0..SERIALIZED_SSID_LEN {
             bytes[i] = *ssid_bytes.get(i).unwrap_or(&0u8);
         }
-        bytes[SERIALIZED_SSID_LEN - 1] = self.rssi;
+        bytes[SERIALIZED_SSID_LEN - 1] = self.rssi as u8;
 
         bytes
     }
+}
+
+#[repr(u8)]
+pub enum WifiStatus {
+    Idle = 0, /// Or Success in scanning
+    Scanning = 1,
+    Connected = 2,
+    ConnectedWithoutInternet = 3,
+    Error = 255
 }
