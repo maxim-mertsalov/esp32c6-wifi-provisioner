@@ -13,6 +13,10 @@ pub enum CharacteristicAction {
     WifiSetPassword,
     WifiConnect,
 
+    // Wi-Fi disconnect
+    WifiDisconnect,
+
+    // Test Wi-Fi connection
     WifiLocalTest,
 
     StatusCode,
@@ -31,6 +35,7 @@ impl BleGATTServer<'_> {
         else if handle == s.wifi_set_ssid_index.handle {return Some(CharacteristicAction::WifiSetSSIDIndex)}
         else if handle == s.wifi_set_password.handle {return Some(CharacteristicAction::WifiSetPassword)}
         else if handle == s.wifi_connect.handle {return Some(CharacteristicAction::WifiConnect)}
+        else if handle == s.wifi_disconnect.handle {return Some(CharacteristicAction::WifiDisconnect)}
         else if handle == s.wifi_local_test.handle {return Some(CharacteristicAction::WifiLocalTest)}
 
         None

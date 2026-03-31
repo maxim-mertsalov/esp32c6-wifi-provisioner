@@ -3,11 +3,11 @@ use core::str::FromStr;
 use core::sync::atomic::Ordering;
 use blocking_network_stack::Stack;
 use embassy_futures::select::{select, Either};
-use embassy_time::Timer;
+use embassy_time::{Timer, WithTimeout};
 use esp_hal::rng::Rng;
 use esp_radio::wifi;
 use esp_radio::wifi::{ClientConfig, ModeConfig, ScanConfig, WifiDevice};
-use log::{info, warn};
+use log::{*};
 use smoltcp::iface::{SocketSet, SocketStorage};
 use static_cell::StaticCell;
 use crate::comm::wifi::models::{WifiScanResult, WifiStatus};
@@ -20,6 +20,8 @@ use crate::comm::wifi::models::MAX_NETWORKS_ON_DEVICE;
 pub enum WifiRunnerCommand {
     /// Try to connect to Wi-Fi via storage-saved credentials
     Connect, // Runtime default
+    /// Disconnect
+    Disconnect,
     /// Scanning nearby networks and save to app_state
     Scan,
     /// Send ping to router
@@ -30,7 +32,7 @@ pub enum WifiRunnerCommand {
 pub async fn wifi_runner(
     app_state: AppState,
     mut wifi_controller: wifi::WifiController<'static>,
-    mut wifi_device: wifi::WifiDevice<'static>,
+    mut wifi_device: WifiDevice<'static>,
     rng: Rng
 ) {
     // Buffers
@@ -56,7 +58,7 @@ pub async fn wifi_runner(
     socket_set.add(dhcp_socket);
 
     // Init stack
-    let mut stack = blocking_network_stack::Stack::new(
+    let mut stack = Stack::new(
         interface,
         wifi_device,
         socket_set,
@@ -69,14 +71,20 @@ pub async fn wifi_runner(
         .await
         .expect("WifiController crashed while starting");
 
-    // stack.work();
-
-    // let command = app_state.wifi_command.receive().await;
+    let mut retry_count = 0;
+    let mut connection_started_at: Option<embassy_time::Instant> = None;
 
     // Connect to Wi-Fi network
     loop {
         let command_fut = app_state.wifi_command.receive();
         let timer_fut = Timer::after_millis(10);
+
+        check_connecting_status(
+            app_state,
+            &mut wifi_controller,
+            &mut connection_started_at,
+            &mut retry_count
+        ).await;
 
         match select(command_fut, timer_fut).await {
             Either::First(command) => {
@@ -84,7 +92,9 @@ pub async fn wifi_runner(
                     command,
                     &mut wifi_controller,
                     &mut stack,
-                    app_state
+                    app_state,
+                    &mut connection_started_at,
+                    &mut retry_count
                 ).await;
             },
             Either::Second(_) => {}
@@ -97,11 +107,54 @@ pub async fn wifi_runner(
     }
 }
 
-pub async fn match_wifi_command(
+async fn check_connecting_status(
+    app_state: AppState,
+    wifi_controller: &mut wifi::WifiController<'static>,
+    connection_started_at: &mut Option<embassy_time::Instant>,
+    retry_count: &mut u8
+) {
+    const MAX_RETRIES: u8 = 5;
+    const CONN_TIMEOUT_MS: u64 = 10_000; // 10 s.
+
+    let wifi_status = app_state.wifi_status.load(Ordering::Relaxed);
+
+    if wifi_status == WifiStatus::Connecting as u8 {
+        if wifi_controller.is_connected().unwrap_or(false) {
+            // Success
+            info!("[WIFI_task]: Connected successfully!");
+            app_state.wifi_status.store(WifiStatus::Connected as u8, Ordering::Relaxed);
+            *connection_started_at = None;
+            *retry_count = 0;
+        } else if let Some(start_time) = connection_started_at {
+            // Check for timeout
+            if start_time.elapsed().as_millis() > CONN_TIMEOUT_MS {
+                warn!("[WIFI_task]: Connection attempt {} timed out", *retry_count + 1);
+
+                *retry_count += 1;
+                if *retry_count < MAX_RETRIES {
+                    info!("[WIFI_task]: Retrying... ({} of {})", *retry_count + 1, MAX_RETRIES);
+                    // Reset driver
+                    let _ = wifi_controller.disconnect();
+                    let _ = wifi_controller.connect();
+                    *connection_started_at = Some(embassy_time::Instant::now());
+                } else {
+                    error!("[WIFI_task]: Max retries reached. Giving up.");
+                    app_state.wifi_status.store(WifiStatus::Error as u8, Ordering::Relaxed);
+                    *connection_started_at = None;
+                    let _ = wifi_controller.disconnect();
+                }
+            }
+        }
+    }
+}
+
+async fn match_wifi_command(
     command: WifiRunnerCommand,
     wifi_controller: &mut wifi::WifiController<'static>,
     stack: &mut Stack<'_, WifiDevice<'static>>,
     app_state: AppState,
+    connection_started_at: &mut Option<embassy_time::Instant>,
+    retry_count: &mut u8
 ) {
     match command {
         WifiRunnerCommand::Connect => {
@@ -126,13 +179,25 @@ pub async fn match_wifi_command(
                 .expect("Failed to set Wi-Fi mode");
 
             if let Err(e) = wifi_controller.connect() {
-                warn!("[WIFI_task]: Failed to connect to Wi-Fi mode: {}", e);
+                warn!("[WIFI_task]: Could not start connection: {}", e);
                 app_state.wifi_status.store(WifiStatus::Error as u8, Ordering::Relaxed);
             } else {
-                info!("[WIFI_task]: Connected to Wi-Fi network: {}", credentials.ssid);
-                app_state.wifi_status.store(WifiStatus::Connected as u8, Ordering::Relaxed);
+                info!("[WIFI_task]: Connection attempt started to {}...", credentials.ssid);
+                *connection_started_at = Some(embassy_time::Instant::now());
+                *retry_count = 0;
+                // app_state.wifi_status.store(WifiStatus::Connecting as u8, Ordering::Relaxed);
             }
+        },
+        WifiRunnerCommand::Disconnect => {
+            info!("[WIFI_task]: Disconnecting...");
 
+            if let Err(e) = wifi_controller.disconnect() {
+                warn!("[WIFI_task]: Failed to disconnect: {}", e);
+                app_state.wifi_status.store(WifiStatus::Error as u8, Ordering::Relaxed);
+            } else {
+                info!("[WIFI_task]: Disconnected from Wi-Fi network");
+                app_state.wifi_status.store(WifiStatus::Idle as u8, Ordering::Relaxed);
+            }
         }
         WifiRunnerCommand::Scan => {
             info!("[WIFI_task]: Scanning...");
@@ -173,8 +238,9 @@ pub async fn match_wifi_command(
                 info!("[WIFI_task]: Online! Ip: {:?}", stack.get_ip_info());
                 app_state.wifi_status.store(WifiStatus::Connected as u8, Ordering::Relaxed);
             } else {
+                warn!("[WIFI_task]: Not connected to Wi-Fi network");
                 app_state.wifi_status.store(WifiStatus::ErrorNoConnection as u8, Ordering::Relaxed);
             }
-        }
+        },
     }
 }

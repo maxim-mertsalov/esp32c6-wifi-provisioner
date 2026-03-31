@@ -14,11 +14,12 @@ pub enum RunnerCommand {
     WiFiSendPassword([u8; MAX_PASSWORD_LEN]),
 
     WifiTryConnect,
+    WifiTryDisconnect,
+
+    PingLocalNetwork,
 
     SendServerUrl([u8; 64]),
     SendGetRequest,
-
-    TestConnection,
 }
 
 /// Main control loop, that switches commands between other threads
@@ -85,13 +86,18 @@ pub async fn runner_task(app_state: AppState) {
                 app_state.wifi_command.sender()
                     .send(WifiRunnerCommand::Connect).await;
             }
+            RunnerCommand::WifiTryDisconnect => {
+                info!("Wifi try disconnect");
+                app_state.wifi_command.sender()
+                    .send(WifiRunnerCommand::Disconnect).await;
+            }
             RunnerCommand::SendServerUrl(_) => {
                 info!("Sending server URL");
             }
             RunnerCommand::SendGetRequest => {
                 info!("Sending get request");
             }
-            RunnerCommand::TestConnection => {
+            RunnerCommand::PingLocalNetwork => {
                 info!("Testing connection");
                 app_state.wifi_command.sender()
                     .send(WifiRunnerCommand::PingLocal).await;
