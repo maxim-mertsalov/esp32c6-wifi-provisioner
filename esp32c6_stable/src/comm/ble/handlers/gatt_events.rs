@@ -5,7 +5,7 @@ use trouble_host::{Error, PacketPool};
 use crate::app::runner::RunnerCommand;
 use crate::comm::ble::BleGATTServer;
 use crate::comm::ble::utils::char_action::CharacteristicAction;
-use crate::comm::wifi::models::{MAX_SSID_PER_PAGE, SHORT_SSID_LEN};
+use crate::comm::wifi::models::{MAX_PASSWORD_LEN, MAX_SSID_PER_PAGE, SHORT_SSID_LEN};
 use crate::prelude::AppState;
 
 /// Stream Events until the connection closes.
@@ -135,6 +135,30 @@ pub async fn match_write_events<P: PacketPool>(event: &WriteEvent<'_, '_, P>, se
 
                 let sender = app_state.runner_command.sender();
                 sender.send(RunnerCommand::WiFiSelectScannedPage(page)).await;
+            }
+            CharacteristicAction::WifiSetSSIDIndex => {
+                let index = event.data()[0];
+
+                let sender = app_state.runner_command.sender();
+                sender.send(RunnerCommand::WiFiSendSSIDIndex(index)).await;
+            }
+            CharacteristicAction::WifiSetPassword => {
+                let password = event.data();
+                let mut pass_layout = [0u8; MAX_PASSWORD_LEN];
+                for i in 0..MAX_PASSWORD_LEN {
+                    pass_layout[i] = *password.get(i).unwrap_or(&0u8);
+                }
+
+                let sender = app_state.runner_command.sender();
+                sender.send(RunnerCommand::WiFiSendPassword(pass_layout)).await;
+            }
+            CharacteristicAction::WifiConnect => {
+                let sender = app_state.runner_command.sender();
+                sender.send(RunnerCommand::WifiTryConnect).await;
+            }
+            CharacteristicAction::WifiLocalTest => {
+                let sender = app_state.runner_command.sender();
+                sender.send(RunnerCommand::TestConnection).await;
             }
             _ => {
                 info!("incorrect gatt event action: {}", event.handle());

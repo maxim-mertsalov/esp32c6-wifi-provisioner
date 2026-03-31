@@ -5,12 +5,12 @@ use embassy_sync::watch::Watch;
 use heapless::Vec;
 use static_cell::StaticCell;
 use crate::app::runner::RunnerCommand;
-use crate::comm::wifi::models::{WifiCredentials, WifiScanResult, MAX_NETWORKS_ON_DEVICE, MAX_PASSWORD_LEN};
+use crate::comm::wifi::models::{WifiCredentials, WifiScanResult, MAX_NETWORKS_ON_DEVICE};
 use crate::comm::wifi::runner::WifiRunnerCommand;
 
 #[derive(Copy, Clone)]
 pub struct AppState {
-    pub wifi_config: &'static Watch<CriticalSectionRawMutex, Option<WifiCredentials>, 4>,
+    pub wifi_config: &'static Watch<CriticalSectionRawMutex, WifiCredentials, 4>,
     pub wifi_status: &'static AtomicU8,
     pub wifi_networks: &'static Watch<CriticalSectionRawMutex, Vec<WifiScanResult, MAX_NETWORKS_ON_DEVICE>, 4>,
     pub current_page: &'static AtomicU8,
@@ -24,7 +24,7 @@ pub struct AppState {
 
 impl Default for AppState {
     fn default() -> Self {
-        static WIFI_CONFIG: StaticCell<Watch<CriticalSectionRawMutex, Option<WifiCredentials>, 4>> = StaticCell::new();
+        static WIFI_CONFIG: StaticCell<Watch<CriticalSectionRawMutex, WifiCredentials, 4>> = StaticCell::new();
         static WIFI_STATUS: StaticCell<AtomicU8> = StaticCell::new();
         static WIFI_NETWORKS: StaticCell<Watch<CriticalSectionRawMutex, Vec<WifiScanResult, MAX_NETWORKS_ON_DEVICE>, 4>> = StaticCell::new();
         static CURRENT_PAGE_ID: StaticCell<AtomicU8> = StaticCell::new();
@@ -36,7 +36,7 @@ impl Default for AppState {
 
 
         AppState {
-            wifi_config: WIFI_CONFIG.init(Watch::new_with(None)),
+            wifi_config: WIFI_CONFIG.init(Watch::new_with(WifiCredentials::default())),
             wifi_status: WIFI_STATUS.init(AtomicU8::new(0)),
             wifi_networks: WIFI_NETWORKS.init(Watch::new_with(Vec::new())),
             current_page: CURRENT_PAGE_ID.init(AtomicU8::new(0)),

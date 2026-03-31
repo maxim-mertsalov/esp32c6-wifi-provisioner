@@ -1,6 +1,7 @@
 use core::sync::atomic::Ordering;
+use heapless::{String, Vec};
 use log::{*};
-use crate::comm::wifi::models::MAX_PASSWORD_LEN;
+use crate::comm::wifi::models::{WifiCredentials, WifiStatus, MAX_PASSWORD_LEN};
 use crate::comm::wifi::runner::WifiRunnerCommand;
 use crate::prelude::AppState;
 
@@ -43,9 +44,46 @@ pub async fn runner_task(app_state: AppState) {
             }
             RunnerCommand::WiFiSendSSIDIndex(index) => {
                 info!("WiFi send SSID index: {}", index);
+                let wifi_networks = app_state.wifi_networks.try_get()
+                    .unwrap_or(Vec::new());
+
+                if wifi_networks.is_empty() {
+                    app_state.wifi_status.store(WifiStatus::ErrorNoScanning as u8, Ordering::Relaxed);
+                } else {
+                    let ssid = &wifi_networks[index as usize].ssid;
+                    let old_wifi_config = app_state.wifi_config.try_get()
+                        .unwrap_or_default();
+
+                    app_state.wifi_config.sender()
+                        .send(WifiCredentials {
+                            ssid: ssid.clone(), // todo: too heavy
+                            password: old_wifi_config.password,
+                        })
+                }
             }
             RunnerCommand::WiFiSendPassword(password) => {
                 info!("WiFi send password: {:?}", password);
+                let old_config = app_state.wifi_config.try_get()
+                    .unwrap_or_default();
+
+                let pass_vec: Vec<u8, MAX_PASSWORD_LEN> = Vec::from_slice(&password)
+                    .unwrap_or_default();
+
+                let password = String::from_utf8(pass_vec)
+                    .unwrap_or_default();
+
+                info!("WiFi send password: {:?}", password);
+
+                app_state.wifi_config.sender()
+                    .send(WifiCredentials {
+                        ssid: old_config.ssid,
+                        password,
+                    })
+            }
+            RunnerCommand::WifiTryConnect => {
+                info!("Wifi try connect");
+                app_state.wifi_command.sender()
+                    .send(WifiRunnerCommand::Connect).await;
             }
             RunnerCommand::SendServerUrl(_) => {
                 info!("Sending server URL");
@@ -55,8 +93,9 @@ pub async fn runner_task(app_state: AppState) {
             }
             RunnerCommand::TestConnection => {
                 info!("Testing connection");
+                app_state.wifi_command.sender()
+                    .send(WifiRunnerCommand::PingLocal).await;
             },
-            _ => {}
         }
 
     }

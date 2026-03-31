@@ -1,10 +1,12 @@
 #![no_std]
+extern crate alloc;
 
 pub mod comm;
 pub mod app;
 pub mod board;
 pub mod errors;
 pub mod utils;
+pub mod storage;
 
 pub mod prelude {
     pub use crate::board::Board;

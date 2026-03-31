@@ -9,11 +9,11 @@ pub const ENTIRE_SSID_PAGE_SIZE: usize = SERIALIZED_SSID_LEN * MAX_SSID_PER_PAGE
 
 pub const MAX_NETWORKS_ON_DEVICE: usize = 24;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct WifiCredentials {
     pub ssid: heapless::String<MAX_SSID_LEN>,
     pub password: heapless::String<MAX_PASSWORD_LEN>,
-    pub connection_type: WifiConnectionType
+    // pub connection_type: WifiConnectionType
 }
 
 #[derive(Debug, Clone)]
@@ -63,7 +63,13 @@ impl WifiScanResult {
 pub enum WifiStatus {
     Idle = 0, /// Or Success in scanning
     Scanning = 1,
-    Connected = 2,
+    Connecting = 2,
     ConnectedWithoutInternet = 3,
+    Connected = 4,
+
+    ErrorNoConnection = 251,
+    ErrorConnectionFailed = 252,
+    ErrorIncorrectPassword = 253,
+    ErrorNoScanning = 254,
     Error = 255
 }

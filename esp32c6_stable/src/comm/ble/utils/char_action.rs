@@ -1,11 +1,20 @@
 use crate::comm::ble::BleGATTServer;
 
 pub enum CharacteristicAction {
+    // Wi-Fi Scan
     WifiScanCmd,
     WifiGetStatus,
     WifiGetPagesCount,
     WifiSelectPage,
     WifiGetPageData,
+
+    // Wi-Fi connect
+    WifiSetSSIDIndex,
+    WifiSetPassword,
+    WifiConnect,
+
+    WifiLocalTest,
+
     StatusCode,
 }
 
@@ -19,6 +28,10 @@ impl BleGATTServer<'_> {
         else if handle == s.wifi_select_page.handle {return Some(CharacteristicAction::WifiSelectPage)}
         else if handle == s.status_code.handle {return Some(CharacteristicAction::StatusCode)}
         else if handle == s.wifi_get_page_data.handle {return Some(CharacteristicAction::WifiGetPageData)}
+        else if handle == s.wifi_set_ssid_index.handle {return Some(CharacteristicAction::WifiSetSSIDIndex)}
+        else if handle == s.wifi_set_password.handle {return Some(CharacteristicAction::WifiSetPassword)}
+        else if handle == s.wifi_connect.handle {return Some(CharacteristicAction::WifiConnect)}
+        else if handle == s.wifi_local_test.handle {return Some(CharacteristicAction::WifiLocalTest)}
 
         None
     }

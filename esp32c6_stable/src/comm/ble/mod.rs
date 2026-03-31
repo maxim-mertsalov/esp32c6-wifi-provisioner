@@ -11,7 +11,7 @@ use static_cell::StaticCell;
 use trouble_host::prelude::*;
 use crate::comm::ble::handlers::{gatt_events::gatt_events_task, notifier::custom_task};
 use crate::comm::ble::advertiser::advertise;
-use crate::comm::wifi::models::ENTIRE_SSID_PAGE_SIZE;
+use crate::comm::wifi::models::{ENTIRE_SSID_PAGE_SIZE, MAX_PASSWORD_LEN};
 use crate::errors::ble_error::BleError;
 use crate::prelude::AppState;
 
@@ -32,9 +32,11 @@ mod ble_gatt_server_uuids {
     pub const WIFI_SELECT_PAGE: Uuid = uuid!("6839a19d-8a4b-4691-89cc-7a312c1efe54");
     pub const WIFI_GET_PAGE_DATA: Uuid = uuid!("9c0c07d7-0435-4a9d-b999-369c8f646252");
 
-    // pub const WIFI_SET_SSID_INDEX: Uuid = uuid!("824f9460-5d76-4498-a549-0020100907bc");
-    // pub const WIFI_SET_PASSWORD: Uuid = uuid!("273d7528-c072-4fe6-b29b-c1e468f039f2");
-    // pub const WIFI_CONNECT: Uuid = uuid!("2c1f2d97-5c53-435b-940c-c36cf349ca53");
+    pub const WIFI_SET_SSID_INDEX: Uuid = uuid!("824f9460-5d76-4498-a549-0020100907bc");
+    pub const WIFI_SET_PASSWORD: Uuid = uuid!("273d7528-c072-4fe6-b29b-c1e468f039f2");
+    pub const WIFI_CONNECT: Uuid = uuid!("2c1f2d97-5c53-435b-940c-c36cf349ca53");
+
+    pub const WIFI_LOCAL_TEST: Uuid = uuid!("54477984-44ea-4dbb-8740-b597f3532d9b");
 
     pub const STATUS_CODE: Uuid = uuid!("7df744c9-3a9b-4df6-80f3-ec8c3b77338e");
 }
@@ -72,7 +74,22 @@ pub struct GeneralService {
 
 
     // Wi-Fi connection
-    // TODO
+    #[characteristic(uuid = ble_gatt_server_uuids::WIFI_SET_SSID_INDEX, write)]
+    #[descriptor(uuid = descriptors::CHARACTERISTIC_USER_DESCRIPTION, read, value = "wifi_set_ssid_index")]
+    wifi_set_ssid_index: u8,
+
+    #[characteristic(uuid = ble_gatt_server_uuids::WIFI_SET_PASSWORD, write, value = [0u8; MAX_PASSWORD_LEN] )]
+    #[descriptor(uuid = descriptors::CHARACTERISTIC_USER_DESCRIPTION, read, value = "wifi_set_password")]
+    wifi_set_password: [u8; MAX_PASSWORD_LEN],
+
+    #[characteristic(uuid = ble_gatt_server_uuids::WIFI_CONNECT, write)]
+    #[descriptor(uuid = descriptors::CHARACTERISTIC_USER_DESCRIPTION, read, value = "wifi_connect")]
+    wifi_connect: bool,
+
+    #[characteristic(uuid = ble_gatt_server_uuids::WIFI_LOCAL_TEST, write)]
+    #[descriptor(uuid = descriptors::CHARACTERISTIC_USER_DESCRIPTION, read, value = "wifi_local_test")]
+    wifi_local_test: bool,
+
 
     // General fields
     #[characteristic(uuid = ble_gatt_server_uuids::STATUS_CODE, read, notify)]
