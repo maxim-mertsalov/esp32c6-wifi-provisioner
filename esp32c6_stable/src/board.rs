@@ -3,21 +3,25 @@ use esp_hal::gpio::{Level, Output, OutputConfig};
 use esp_hal::peripherals::Peripherals;
 use esp_hal::rng::Rng;
 use esp_hal::timer::timg::TimerGroup;
-use esp_radio::{ble};
+use esp_radio::{ble, wifi};
+use esp_radio::wifi::{ClientConfig, ModeConfig};
+use esp_storage::FlashStorage;
 use static_cell::StaticCell;
 use log::*;
-
 
 pub struct Board {
     // pub button: Input<static>,
     pub rgb_led: Output<'static>,
 
     // Wi-Fi
-    // pub wifi_controller: wifi::WifiController<'static>,
-    // pub wifi_device: wifi::Interfaces<'static>,
+    pub wifi_controller: Option<wifi::WifiController<'static>>,
+    pub wifi_device: Option<wifi::WifiDevice<'static>>,
 
     // Bluetooth
     pub ble_controller: ExternalController<ble::controller::BleConnector<'static>, 1>,
+
+    // Flash Storage
+    pub flash_storage: &'static FlashStorage<'static>,
 
     // Random number generator module
     pub rng: Rng,
@@ -46,14 +50,32 @@ impl Board {
         let controller: ExternalController<_, 1> = ExternalController::new(connector);
 
 
+        // Wifi
+        let (mut wifi_controller, wifi_interfaces) = wifi::new(
+            radio,
+            peripherals.WIFI,
+            wifi::Config::default()
+        ).unwrap();
+        let device = wifi_interfaces.sta;
+        wifi_controller.set_config(&ModeConfig::Client(ClientConfig::default()))
+            .expect("Failed to set Wi-Fi mode");
+
+
+        // Flash Storage
+        let flash_storage = FlashStorage::new(peripherals.FLASH);
+        static FLASH_STORAGE: StaticCell<FlashStorage> = StaticCell::new();
+        let flash_storage_ref = FLASH_STORAGE.init(flash_storage);
+
+
         // RGB LED
         let rgb_led = Output::new(peripherals.GPIO8, Level::Low, OutputConfig::default());
 
         Self {
             rgb_led,
-            // wifi_controller: (),
-            // wifi_device: Interfaces {},
+            wifi_controller: Some(wifi_controller),
+            wifi_device: Some(device),
             ble_controller: controller,
+            flash_storage: flash_storage_ref,
             rng,
         }
 

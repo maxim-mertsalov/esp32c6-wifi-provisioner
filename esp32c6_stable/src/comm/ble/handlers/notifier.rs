@@ -29,6 +29,6 @@ pub async fn custom_task<C: Controller, P: PacketPool>(
             info!("[custom_task] error getting RSSI");
             break;
         };
-        Timer::after_secs(2).await;
+        Timer::after_secs(10).await;
     }
 }

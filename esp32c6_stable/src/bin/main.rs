@@ -8,6 +8,7 @@ use embassy_executor::Spawner;
 use esp_backtrace as _;
 use esp_hal::{
     clock::CpuClock,
+    ram
 };
 use esp32c6_stable::prelude::*;
 
@@ -26,15 +27,32 @@ extern "C" fn __esp_radio_misc_nvs_deinit() {}
 
 
 #[esp_rtos::main]
-async fn main(_s: Spawner) {
+async fn main(s: Spawner) {
     esp_println::logger::init_logger_from_env();
     let peripherals = esp_hal::init(esp_hal::Config::default().with_cpu_clock(CpuClock::max()));
-    esp_alloc::heap_allocator!(size: 72 * 1024);
 
-    let board = Board::init(peripherals);
+    // Take from bootloader
+    esp_alloc::heap_allocator!(#[ram(reclaimed)] size: 64 * 1024);
+    esp_alloc::heap_allocator!(size: 96 * 1024);
+
+
+    let mut board = Board::init(peripherals);
 
     let state = AppState::default();
 
+    s.spawn(runner_task(state))
+        .expect("Couldn't spawn Runner task");
+
+    let wifi_device = board.wifi_device
+        .expect("Couldn't get wifi_device");
+    let wifi_controller = board.wifi_controller
+        .expect("Couldn't get wifi_controller");
+
+    board.wifi_device = None;
+    board.wifi_controller = None;
+
+    s.spawn(wifi_runner(state, wifi_controller, wifi_device, board.rng))
+        .expect("Couldn't spawn Wi-Fi task");
 
     main_control_loop(board, state).await;
 }
