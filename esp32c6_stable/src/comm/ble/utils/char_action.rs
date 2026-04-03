@@ -18,6 +18,7 @@ pub enum CharacteristicAction {
 
     // Test Wi-Fi connection
     WifiLocalTest,
+    WifiGlobalTest,
 
     StatusCode,
 }
@@ -37,6 +38,7 @@ impl BleGATTServer<'_> {
         else if handle == s.wifi_connect.handle {return Some(CharacteristicAction::WifiConnect)}
         else if handle == s.wifi_disconnect.handle {return Some(CharacteristicAction::WifiDisconnect)}
         else if handle == s.wifi_local_test.handle {return Some(CharacteristicAction::WifiLocalTest)}
+        else if handle == s.wifi_global_test.handle {return Some(CharacteristicAction::WifiGlobalTest)}
 
         None
     }

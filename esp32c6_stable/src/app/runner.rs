@@ -17,6 +17,7 @@ pub enum RunnerCommand {
     WifiTryDisconnect,
 
     PingLocalNetwork,
+    PingGlobalNetwork,
 
     SendServerUrl([u8; 64]),
     SendGetRequest,
@@ -102,6 +103,11 @@ pub async fn runner_task(app_state: AppState) {
                 app_state.wifi_command.sender()
                     .send(WifiRunnerCommand::PingLocal).await;
             },
+            RunnerCommand::PingGlobalNetwork => {
+                info!("Testing connection");
+                app_state.wifi_command.sender()
+                    .send(WifiRunnerCommand::PingGlobal).await;
+            }
         }
 
     }

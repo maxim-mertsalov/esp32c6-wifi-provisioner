@@ -32,6 +32,9 @@ embassy-net = { version = "0.7.1", features = [
   "medium-ethernet",
   "tcp",
   "udp",
+  "icmp",
+  "raw",
+  "dns"
 ] }
 embedded-io = "0.7.1"
 embedded-io-async = "0.7.0"

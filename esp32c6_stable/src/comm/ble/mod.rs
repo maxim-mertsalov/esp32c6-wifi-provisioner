@@ -39,6 +39,7 @@ mod ble_gatt_server_uuids {
     pub const WIFI_DISCONNECT: Uuid = uuid!("61cd3e5f-0a78-4318-9891-f1ef74a522e3");
 
     pub const WIFI_LOCAL_TEST: Uuid = uuid!("54477984-44ea-4dbb-8740-b597f3532d9b");
+    pub const WIFI_GLOBAL_TEST: Uuid = uuid!("24b71d12-4637-4bd1-b408-e784789544f9");
 
     pub const STATUS_CODE: Uuid = uuid!("7df744c9-3a9b-4df6-80f3-ec8c3b77338e");
 }
@@ -98,6 +99,10 @@ pub struct GeneralService {
     #[characteristic(uuid = ble_gatt_server_uuids::WIFI_LOCAL_TEST, write)]
     #[descriptor(uuid = descriptors::CHARACTERISTIC_USER_DESCRIPTION, read, value = "wifi_local_test")]
     wifi_local_test: bool,
+
+    #[characteristic(uuid = ble_gatt_server_uuids::WIFI_GLOBAL_TEST, write)]
+    #[descriptor(uuid = descriptors::CHARACTERISTIC_USER_DESCRIPTION, read, value = "wifi_global_test")]
+    wifi_global_test: bool,
 
 
     // General fields

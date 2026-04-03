@@ -66,7 +66,9 @@ pub enum WifiStatus {
     Connecting = 2,
     ConnectedWithoutInternet = 3,
     Connected = 4,
+    ConnectedWithInterner = 5,
 
+    ErrorNoInternet = 250,
     ErrorNoConnection = 251,
     ErrorConnectionFailed = 252,
     ErrorIncorrectPassword = 253,

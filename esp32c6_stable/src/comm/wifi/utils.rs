@@ -1,25 +1,20 @@
+use embassy_net::dns::Error;
+use embassy_net::Stack;
+use embassy_net::IpAddress;
+use embassy_net::dns::DnsQueryType;
+use log::{info, warn};
 
-
-pub fn create_interface(
-    device: &mut esp_radio::wifi::WifiDevice,
-    now: smoltcp::time::Instant
-) -> smoltcp::iface::Interface {
-    // Extract MAC-address from esp32 chip
-    let mac_bytes = device.mac_address();
-    let ethernet_addr = smoltcp::wire::EthernetAddress::from_bytes(&mac_bytes);
-
-    // Create interface configuration
-    // We use Ethernet-like device type
-    let config = smoltcp::iface::Config::new(
-        smoltcp::wire::HardwareAddress::Ethernet(ethernet_addr)
-    );
-
-    // Create interface
-    // It uses device to send/ receive packets
-    // The timestamp is used for timeouts and other time related operations in the stack
-    smoltcp::iface::Interface::new(
-        config,
-        device,
-        now
-    )
+pub async fn nslookup(stack: &Stack<'static>, addr: &str) -> Result<IpAddress, Error> {
+    match (*stack).dns_query(addr, DnsQueryType::A).await {
+        Ok(response) => {
+            info!("[WIFI_task]: Got response: {:?}", response);
+            let addr: IpAddress = *response.get(0)
+                .expect("DNS response is empty");
+            Ok(addr)
+        }
+        Err(e) => {
+            warn!("DNS lookup failed");
+            Err(e)
+        }
+    }
 }

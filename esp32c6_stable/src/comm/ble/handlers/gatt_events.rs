@@ -164,6 +164,10 @@ pub async fn match_write_events<P: PacketPool>(event: &WriteEvent<'_, '_, P>, se
                 let sender = app_state.runner_command.sender();
                 sender.send(RunnerCommand::PingLocalNetwork).await;
             }
+            CharacteristicAction::WifiGlobalTest => {
+                let sender = app_state.runner_command.sender();
+                sender.send(RunnerCommand::PingGlobalNetwork).await;
+            }
             _ => {
                 info!("incorrect gatt event action: {}", event.handle());
             }
