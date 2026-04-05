@@ -11,7 +11,7 @@ use static_cell::StaticCell;
 use trouble_host::prelude::*;
 use crate::comm::ble::handlers::{gatt_events::gatt_events_task, notifier::custom_task};
 use crate::comm::ble::advertiser::advertise;
-use crate::comm::wifi::models::{ENTIRE_SSID_PAGE_SIZE, MAX_PASSWORD_LEN};
+use crate::comm::wifi::models::{ENTIRE_SSID_PAGE_SIZE, MAX_PASSWORD_LEN, MAX_WIFI_CONNECTION_TYPE_SIZE};
 use crate::errors::ble_error::BleError;
 use crate::prelude::AppState;
 
@@ -34,6 +34,7 @@ mod ble_gatt_server_uuids {
 
     pub const WIFI_SET_SSID_INDEX: Uuid = uuid!("824f9460-5d76-4498-a549-0020100907bc");
     pub const WIFI_SET_PASSWORD: Uuid = uuid!("273d7528-c072-4fe6-b29b-c1e468f039f2");
+    pub const WIFI_SET_CONNECTION_TYPE: Uuid = uuid!("25422a9b-558d-49f1-8db9-30bbfe8b1c2c");
     pub const WIFI_CONNECT: Uuid = uuid!("2c1f2d97-5c53-435b-940c-c36cf349ca53");
 
     pub const WIFI_DISCONNECT: Uuid = uuid!("61cd3e5f-0a78-4318-9891-f1ef74a522e3");
@@ -85,6 +86,11 @@ pub struct GeneralService {
     #[descriptor(uuid = descriptors::CHARACTERISTIC_USER_DESCRIPTION, read, value = "wifi_set_password")]
     wifi_set_password: [u8; MAX_PASSWORD_LEN],
 
+    #[characteristic(uuid = ble_gatt_server_uuids::WIFI_SET_CONNECTION_TYPE, write, value = [0u8; MAX_WIFI_CONNECTION_TYPE_SIZE] )]
+    #[descriptor(uuid = descriptors::CHARACTERISTIC_USER_DESCRIPTION, read, value = "wifi_set_connection_type")]
+    wifi_set_connection_type: [u8; MAX_WIFI_CONNECTION_TYPE_SIZE],
+
+    // Wi-Fi connection actions
     #[characteristic(uuid = ble_gatt_server_uuids::WIFI_CONNECT, write)]
     #[descriptor(uuid = descriptors::CHARACTERISTIC_USER_DESCRIPTION, read, value = "wifi_connect")]
     wifi_connect: bool,

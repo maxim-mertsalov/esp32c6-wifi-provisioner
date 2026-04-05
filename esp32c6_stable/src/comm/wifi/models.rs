@@ -13,15 +13,37 @@ pub const MAX_NETWORKS_ON_DEVICE: usize = 24;
 pub struct WifiCredentials {
     pub ssid: heapless::String<MAX_SSID_LEN>,
     pub password: heapless::String<MAX_PASSWORD_LEN>,
-    // pub connection_type: WifiConnectionType
+    pub connection_type: WifiConnectionType
 }
 
-#[derive(Debug, Clone)]
+/// The biggest input is IPv6: 1 byte type + 16 bytes IPv6 + 1 byte prefix_length + 16 bytes of gateway
+pub const MAX_WIFI_CONNECTION_TYPE_SIZE: usize = 1 + 16 + 1 + 16;
+
+/// Serialised data is sequentially represented in bytes, example:
+/// ```rust,no_run
+/// use crate::esp32c6_stable::comm::wifi::models::{WifiConnectionType, MAX_WIFI_CONNECTION_TYPE_SIZE};
+///
+/// let connection_type = WifiConnectionType::Static {
+///     ip: [192, 168, 1, 100],
+///     subnet_mask: 24,
+///     gateway: [192, 168, 1, 1],
+/// };
+///
+/// let mut bytes = [0u8; MAX_WIFI_CONNECTION_TYPE_SIZE];
+/// let serialised_part = [1, 192, 168, 1, 100, 24, 192, 168, 1, 1];
+/// bytes[..serialised_part.len()].copy_from_slice(&serialised_part);
+///
+/// let deserialized = WifiConnectionType::from_bytes(bytes);
+/// assert_eq!(connection_type, deserialized);
+/// ```
+///
+#[derive(Debug, Clone, Default)]
 pub enum WifiConnectionType {
+    #[default]
     DHCP,
     Static {
         ip: [u8; 4],
-        subnet_mask: [u8; 4],
+        subnet_mask: u8,
         gateway: [u8; 4],
     },
 
@@ -31,6 +53,27 @@ pub enum WifiConnectionType {
         prefix_length: u8,
         gateway: [u8; 16],
     },
+}
+
+impl WifiConnectionType {
+    pub fn from_bytes(bytes: [u8; MAX_WIFI_CONNECTION_TYPE_SIZE]) -> Self {
+        let connection_type = bytes[0];
+        match connection_type {
+            0 => Self::DHCP,
+            1 => Self::Static {
+                ip: bytes[1..5].try_into().unwrap_or([0u8; 4]),
+                subnet_mask: bytes[5].min(32).max(1),
+                gateway: bytes[6..10].try_into().unwrap_or([0u8; 4]),
+            },
+            2 => Self::DHCPv6,
+            3 => Self::StaticV6 {
+                ip: bytes[1..17].try_into().unwrap_or([0u8; 16]),
+                prefix_length: bytes[17].min(128).max(1),
+                gateway: bytes[18..34].try_into().unwrap_or([0u8; 16]),
+            },
+            _ => Self::DHCP,
+        }
+    }
 }
 
 

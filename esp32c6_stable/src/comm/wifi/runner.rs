@@ -2,11 +2,7 @@ use alloc::string::ToString;
 use core::str::FromStr;
 use core::sync::atomic::Ordering;
 use embassy_futures::select::{select, Either};
-use embassy_net::{
-    Config, Runner, Stack, StackResources,
-    tcp::TcpSocket,
-    icmp::{IcmpSocket, PacketMetadata}
-};
+use embassy_net::{Config, Runner, Stack, StackResources, tcp::TcpSocket, icmp::{IcmpSocket, PacketMetadata}};
 use embassy_time::{Duration, Timer};
 use esp_hal::rng::Rng;
 use esp_radio::wifi;
@@ -16,7 +12,7 @@ use static_cell::StaticCell;
 use crate::comm::wifi::models::{WifiScanResult, WifiStatus};
 use crate::prelude::AppState;
 use crate::comm::wifi::models::MAX_NETWORKS_ON_DEVICE;
-use crate::comm::wifi::utils::nslookup;
+use crate::comm::wifi::utils::{apply_ip_config, nslookup};
 
 pub enum WifiRunnerCommand {
     /// Try to connect to Wi-Fi via storage-saved credentials
@@ -97,6 +93,7 @@ pub async fn wifi_runner(
                         handle_connect(
                             app_state,
                             &mut wifi_controller,
+                            &stack,
                             &mut connection_started_at,
                             &mut retry_count
                         ).await;
@@ -150,14 +147,13 @@ async fn check_connecting_status(
 
     if wifi_status == WifiStatus::Connecting as u8 {
         if wifi_controller.is_connected().unwrap_or(false) {
-            if !(*stack).is_config_up() {
-                warn!("[WIFI_task] Wifi is connected with IP address");
+            if let Some(config) = stack.config_v4() {
+                info!("[WIFI_task] IP assigned: {:?}", config.address);
                 app_state.wifi_status.store(WifiStatus::Connected as u8, Ordering::Relaxed);
                 *connection_started_at = None;
                 *retry_count = 0;
-            }
-            else {
-                debug!("[WIFI_task] Waiting for DHCP...");
+            } else {
+                debug!("[WIFI_task] WiFi Link UP, waiting for IP...");
             }
         } else if let Some(start_time) = connection_started_at {
             // Check for timeout
@@ -185,6 +181,7 @@ async fn check_connecting_status(
 async fn handle_connect(
     app_state: AppState,
     wifi_controller: &mut wifi::WifiController<'static>,
+    stack: &Stack<'static>,
     connection_started_at: &mut Option<embassy_time::Instant>,
     retry_count: &mut u8
 ) {
@@ -208,6 +205,14 @@ async fn handle_connect(
     wifi_controller.set_config(&client_config)
         .expect("Failed to set Wi-Fi mode");
 
+    // Set connection type e.g. DHCP or Static
+    let connection_type = app_state.wifi_config.try_get()
+        .unwrap_or_default()
+        .connection_type;
+
+    apply_ip_config(stack, connection_type).await;
+
+    // Connecting
     if let Err(e) = wifi_controller.connect() {
         warn!("[WIFI_task]: Could not start connection: {}", e);
         app_state.wifi_status.store(WifiStatus::Error as u8, Ordering::Relaxed);
@@ -256,17 +261,25 @@ async fn handle_scan(
             let mut results: heapless::Vec<WifiScanResult, MAX_NETWORKS_ON_DEVICE> = heapless::Vec::new();
 
             for net in networks.iter() {
+                if net.ssid.is_empty() {
+                    continue;
+                }
+
+                let ssid = heapless::String::from_str(net.ssid.as_str()).unwrap_or_default();
+
                 results.push(WifiScanResult {
-                    ssid: heapless::String::from_str(net.ssid.as_str()).unwrap_or(heapless::String::new()),
+                    ssid,
                     rssi: net.signal_strength,
                 }).expect("Failed save network to WifiScanResult");
                 info!("[WIFI_task]: found {} with signal: {} and auth: {:?}", net.ssid, net.signal_strength, net.auth_method);
             }
 
+            let count_net = results.len();
+
 
             app_state.wifi_networks.sender().send(results);
             app_state.wifi_status.store(WifiStatus::Idle as u8, Ordering::Relaxed);
-            info!("[WIFI_task]: Found {} networks", networks.len());
+            info!("[WIFI_task]: Found {} networks", count_net);
         }
         Err(e) => {
             warn!("[WIFI_task]: Scan error {:?}", e);
@@ -324,8 +337,7 @@ async fn handle_test_router(
         return;
     };
 
-    let ip = config.address;
-    info!("[WIFI_task]: Connecting from {}", ip);
+    info!("[WIFI_task]: Config: {:?}", config);
 
     let Some(gateway) = config.gateway else {
         warn!("[WIFI_task]: No gateway found in DHCP config");
@@ -340,7 +352,7 @@ async fn handle_test_router(
     let mut tx_meta = [PacketMetadata::EMPTY; 2];
     let mut tx_payload = [0u8; 256];
 
-    let mut icmp = IcmpSocket::new(
+    let icmp = IcmpSocket::new(
         *stack,
         &mut rx_meta,
         &mut rx_payload,

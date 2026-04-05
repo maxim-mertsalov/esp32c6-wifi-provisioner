@@ -1,7 +1,7 @@
 use core::sync::atomic::Ordering;
 use heapless::{String, Vec};
 use log::{*};
-use crate::comm::wifi::models::{WifiCredentials, WifiStatus, MAX_PASSWORD_LEN};
+use crate::comm::wifi::models::{WifiConnectionType, WifiCredentials, WifiStatus, MAX_PASSWORD_LEN, MAX_WIFI_CONNECTION_TYPE_SIZE};
 use crate::comm::wifi::runner::WifiRunnerCommand;
 use crate::prelude::AppState;
 
@@ -12,6 +12,7 @@ pub enum RunnerCommand {
 
     WiFiSendSSIDIndex(u8),
     WiFiSendPassword([u8; MAX_PASSWORD_LEN]),
+    WifiSendConnectionType([u8; MAX_WIFI_CONNECTION_TYPE_SIZE]),
 
     WifiTryConnect,
     WifiTryDisconnect,
@@ -52,7 +53,16 @@ pub async fn runner_task(app_state: AppState) {
                 if wifi_networks.is_empty() {
                     app_state.wifi_status.store(WifiStatus::ErrorNoScanning as u8, Ordering::Relaxed);
                 } else {
-                    let ssid = &wifi_networks[index as usize].ssid;
+                    let scan = &wifi_networks.get(index as usize);
+
+                    if scan.is_none() {
+                        warn!("Incorrect WiFi index: {}", index);
+                        continue;
+                    }
+
+                    let ssid = &scan.unwrap().ssid;
+                    info!("Selected WiFi SSID: {}", ssid);
+
                     let old_wifi_config = app_state.wifi_config.try_get()
                         .unwrap_or_default();
 
@@ -60,6 +70,7 @@ pub async fn runner_task(app_state: AppState) {
                         .send(WifiCredentials {
                             ssid: ssid.clone(), // todo: too heavy
                             password: old_wifi_config.password,
+                            connection_type: WifiConnectionType::DHCP
                         })
                 }
             }
@@ -80,8 +91,26 @@ pub async fn runner_task(app_state: AppState) {
                     .send(WifiCredentials {
                         ssid: old_config.ssid,
                         password,
+                        connection_type: old_config.connection_type,
                     })
             }
+            RunnerCommand::WifiSendConnectionType(connection_type) => {
+                info!("WiFi send connection type: {:?}", connection_type);
+                let old_config = app_state.wifi_config.try_get()
+                    .unwrap_or_default();
+
+                let connection_type = WifiConnectionType::from_bytes(connection_type);
+
+                info!("WiFi send connection type: {:?}", connection_type);
+
+                app_state.wifi_config.sender()
+                    .send(WifiCredentials {
+                        ssid: old_config.ssid,
+                        password: old_config.password,
+                        connection_type,
+                    })
+            }
+
             RunnerCommand::WifiTryConnect => {
                 info!("Wifi try connect");
                 app_state.wifi_command.sender()
