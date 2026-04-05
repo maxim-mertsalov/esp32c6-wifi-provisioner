@@ -41,7 +41,6 @@ pub async fn wifi_runner(
 
     // Setup DHCP
     let dhcp_config = embassy_net::DhcpConfig::default();
-    // dhcp_config. = Some(heapless::String::from_str("ESP32").unwrap());
     let config = Config::dhcpv4(dhcp_config);
     let seed = rng.random() as u64;
 
@@ -204,8 +203,12 @@ async fn handle_connect(
             .with_auth_method(credentials.auth_method)
     );
     // TODO: EapClient for enterprise networks
-    wifi_controller.set_config(&client_config)
-        .expect("Failed to set Wi-Fi mode");
+    let mode_res = wifi_controller.set_config(&client_config);
+    if let Err(e) = mode_res {
+        warn!("[WIFI_task]: Failed to set Wi-Fi mode: {}", e);
+        app_state.wifi_status.store(WifiStatus::Error as u8, Ordering::Relaxed);
+        return;
+    }
 
     // Set connection type e.g. DHCP or Static
     let connection_type = app_state.wifi_config.try_get()
@@ -270,11 +273,11 @@ async fn handle_scan(
                 let ssid = heapless::String::from_str(net.ssid.as_str()).unwrap_or_default();
                 let auth_method = net.auth_method.unwrap_or_default();
 
-                results.push(WifiScanResult {
+                if let Err(e) = results.push(WifiScanResult {
                     ssid,
                     rssi: net.signal_strength,
                     auth_method
-                }).expect("Failed save network to WifiScanResult");
+                }) { warn!("[WIFI_task]: Failed to push scan result: {:?}", e); };
                 info!("[WIFI_task]: found {} with signal: {} and auth: {:?}", net.ssid, net.signal_strength, net.auth_method);
             }
 
@@ -305,8 +308,6 @@ async fn handle_test_global(
     let mut socket = TcpSocket::new(*stack, &mut rx_buffer, &mut tx_buffer);
     socket.set_timeout(Some(Duration::from_secs(5)));
 
-
-
     // Google IP (142.251.38.142)
     let remote_endpoint = (nslookup(&stack, "google.com").await
         .unwrap_or(embassy_net::IpAddress::v4(142, 251, 38, 142)), 80);
@@ -328,6 +329,11 @@ async fn handle_test_global(
                 app_state.wifi_status.store(WifiStatus::ConnectedWithInterner as u8, Ordering::Relaxed);
             }
         }
+        else {
+            warn!("[WIFI_task]: Error while reading internet response");
+        }
+    } else {
+        warn!("[WIFI_task]: Error while writing to socket");
     }
 }
 

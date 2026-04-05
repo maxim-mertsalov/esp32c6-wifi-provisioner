@@ -1,4 +1,4 @@
-
+use trouble_host::Error;
 
 #[derive(Debug)]
 pub enum BleError {
@@ -12,4 +12,10 @@ pub enum BleError {
     UnknownError(&'static str),
 }
 
-
+impl From<trouble_host::Error> for BleError {
+    fn from(e: trouble_host::Error) -> Self {
+        match e {
+            _ => Self::UnknownError("An unknown BLE error occurred from touble-host"),
+        }
+    }
+}

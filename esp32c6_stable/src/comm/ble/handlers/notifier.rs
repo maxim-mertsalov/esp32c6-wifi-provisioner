@@ -30,7 +30,7 @@ pub async fn custom_task<C: Controller, P: PacketPool>(
         };
 
         // read RSSI (Received Signal Strength Indicator) of the connection.
-        if let Ok(rssi) = conn.raw().rssi(stack).await {
+        if let Ok(_rssi) = conn.raw().rssi(stack).await {
             // info!("[custom_task] RSSI: {:?}", rssi);
         } else {
             info!("[custom_task] error getting RSSI");

@@ -149,7 +149,8 @@ pub fn init_gatt_server(
     let server = BleGATTServer::new_with_config(GapConfig::Peripheral(PeripheralConfig {
         name: "ESP32 board",
         appearance: &appearance::control_device::GENERIC_CONTROL_DEVICE,
-    })).map_err(BleError::ServerInitializationFailed).unwrap();
+    })).map_err(BleError::ServerInitializationFailed)
+        .expect("Could not initialize BLE server");
 
     let server_ref = SERVER_CELL.init(server);
 
