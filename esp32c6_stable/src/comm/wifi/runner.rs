@@ -201,7 +201,9 @@ async fn handle_connect(
         ClientConfig::default()
             .with_ssid(credentials.ssid.as_str().to_string())
             .with_password(credentials.password.as_str().to_string())
+            .with_auth_method(credentials.auth_method)
     );
+    // TODO: EapClient for enterprise networks
     wifi_controller.set_config(&client_config)
         .expect("Failed to set Wi-Fi mode");
 
@@ -266,10 +268,12 @@ async fn handle_scan(
                 }
 
                 let ssid = heapless::String::from_str(net.ssid.as_str()).unwrap_or_default();
+                let auth_method = net.auth_method.unwrap_or_default();
 
                 results.push(WifiScanResult {
                     ssid,
                     rssi: net.signal_strength,
+                    auth_method
                 }).expect("Failed save network to WifiScanResult");
                 info!("[WIFI_task]: found {} with signal: {} and auth: {:?}", net.ssid, net.signal_strength, net.auth_method);
             }

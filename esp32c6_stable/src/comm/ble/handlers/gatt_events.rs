@@ -5,7 +5,7 @@ use trouble_host::{Error, PacketPool};
 use crate::app::runner::RunnerCommand;
 use crate::comm::ble::BleGATTServer;
 use crate::comm::ble::utils::char_action::CharacteristicAction;
-use crate::comm::wifi::models::{MAX_PASSWORD_LEN, MAX_SSID_PER_PAGE, MAX_WIFI_CONNECTION_TYPE_SIZE, SHORT_SSID_LEN};
+use crate::comm::wifi::models::{ENTIRE_SSID_PAGE_SIZE, MAX_PASSWORD_LEN, MAX_SSID_PER_PAGE, MAX_WIFI_CONNECTION_TYPE_SIZE, SERIALIZED_SSID_LEN};
 use crate::prelude::AppState;
 
 /// Stream Events until the connection closes.
@@ -83,7 +83,7 @@ pub async fn match_read_events<P: PacketPool>(event: &ReadEvent<'_, '_, P>, serv
 
                 info!("[gatt] selected page: {}", current_page);
 
-                let mut res = [0u8; MAX_SSID_PER_PAGE * (SHORT_SSID_LEN + 1)];
+                let mut res = [0u8; ENTIRE_SSID_PAGE_SIZE];
 
                 let from_wifi = current_page * MAX_SSID_PER_PAGE;
                 let to_wifi = current_page * MAX_SSID_PER_PAGE + MAX_SSID_PER_PAGE;
@@ -91,15 +91,10 @@ pub async fn match_read_events<P: PacketPool>(event: &ReadEvent<'_, '_, P>, serv
                 let mut index = 0;
                 for i in from_wifi..to_wifi {
                     if let Some(scan_res) = scan_data.get(i) {
-                        info!("[gatt] send wifi: {}", scan_res.ssid);
+                        let serialized_scan = scan_res.as_bytes();
 
-                        let new_len = SHORT_SSID_LEN.min(scan_res.ssid.len());
-                        let short_ssid = scan_res.ssid.as_bytes();
-
-                        res[index..(index + new_len)].copy_from_slice(short_ssid);
-                        index += SHORT_SSID_LEN;
-                        res[index] = scan_res.rssi as u8;
-                        index += 1;
+                        res[index..(index + SERIALIZED_SSID_LEN)].copy_from_slice(&serialized_scan);
+                        index += SERIALIZED_SSID_LEN;
                     }
                 }
 

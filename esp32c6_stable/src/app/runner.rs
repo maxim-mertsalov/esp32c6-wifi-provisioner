@@ -60,7 +60,9 @@ pub async fn runner_task(app_state: AppState) {
                         continue;
                     }
 
-                    let ssid = &scan.unwrap().ssid;
+                    let scan = scan.unwrap();
+
+                    let ssid = &scan.ssid;
                     info!("Selected WiFi SSID: {}", ssid);
 
                     let old_wifi_config = app_state.wifi_config.try_get()
@@ -70,6 +72,7 @@ pub async fn runner_task(app_state: AppState) {
                         .send(WifiCredentials {
                             ssid: ssid.clone(), // todo: too heavy
                             password: old_wifi_config.password,
+                            auth_method: scan.auth_method,
                             connection_type: WifiConnectionType::DHCP
                         })
                 }
@@ -91,6 +94,7 @@ pub async fn runner_task(app_state: AppState) {
                     .send(WifiCredentials {
                         ssid: old_config.ssid,
                         password,
+                        auth_method: old_config.auth_method,
                         connection_type: old_config.connection_type,
                     })
             }
@@ -107,6 +111,7 @@ pub async fn runner_task(app_state: AppState) {
                     .send(WifiCredentials {
                         ssid: old_config.ssid,
                         password: old_config.password,
+                        auth_method: old_config.auth_method,
                         connection_type,
                     })
             }

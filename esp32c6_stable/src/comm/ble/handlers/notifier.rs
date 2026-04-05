@@ -14,17 +14,24 @@ pub async fn custom_task<C: Controller, P: PacketPool>(
     stack: &Stack<'_, C, P>,
 ) {
     let mut tick: u8 = 0;
-    let level = server.general_service.status_code;
+    let status_code = server.general_service.status_code;
+    let wifi_get_status = server.general_service.wifi_get_status;
     loop {
         tick = tick.wrapping_add(1);
         info!("[custom_task] notifying connection of tick {}", tick);
-        if level.notify(conn, &tick).await.is_err() {
+        if status_code.notify(conn, &tick).await.is_err() {
             info!("[custom_task] error notifying connection");
             break;
         };
+
+        if wifi_get_status.notify(conn, &tick).await.is_err() {
+            info!("[custom_task] error notifying connection");
+            break;
+        };
+
         // read RSSI (Received Signal Strength Indicator) of the connection.
         if let Ok(rssi) = conn.raw().rssi(stack).await {
-            info!("[custom_task] RSSI: {:?}", rssi);
+            // info!("[custom_task] RSSI: {:?}", rssi);
         } else {
             info!("[custom_task] error getting RSSI");
             break;

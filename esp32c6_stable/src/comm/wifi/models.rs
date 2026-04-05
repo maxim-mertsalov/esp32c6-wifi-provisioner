@@ -1,9 +1,10 @@
-
+use esp_radio::wifi::AuthMethod;
+use crate::comm::wifi::utils::auth_method_to_u8;
 
 pub const MAX_SSID_LEN: usize = 64;
 pub const MAX_PASSWORD_LEN: usize = 64;
 pub const SHORT_SSID_LEN: usize = 16;
-pub const SERIALIZED_SSID_LEN: usize = SHORT_SSID_LEN + 1; // SSID + RSSI
+pub const SERIALIZED_SSID_LEN: usize = SHORT_SSID_LEN + 1 + 1; // SSID + RSSI + Security Type
 pub const MAX_SSID_PER_PAGE: usize = 5;
 pub const ENTIRE_SSID_PAGE_SIZE: usize = SERIALIZED_SSID_LEN * MAX_SSID_PER_PAGE;
 
@@ -13,6 +14,7 @@ pub const MAX_NETWORKS_ON_DEVICE: usize = 24;
 pub struct WifiCredentials {
     pub ssid: heapless::String<MAX_SSID_LEN>,
     pub password: heapless::String<MAX_PASSWORD_LEN>,
+    pub(crate) auth_method: AuthMethod,
     pub connection_type: WifiConnectionType
 }
 
@@ -80,23 +82,27 @@ impl WifiConnectionType {
 #[derive(Debug, Clone)]
 pub struct WifiScanResult {
     pub ssid: heapless::String<MAX_SSID_LEN>,
-    pub rssi: i8
+    pub rssi: i8,
+    pub auth_method: AuthMethod
 }
 
 impl WifiScanResult {
-    pub fn new(ssid: heapless::String<MAX_SSID_LEN>, rssi: i8) -> Self {
-        Self { ssid, rssi }
+    pub fn new(ssid: heapless::String<MAX_SSID_LEN>, rssi: i8, auth_method: AuthMethod) -> Self {
+        Self { ssid, rssi, auth_method }
     }
 
-    pub fn into_bytes(self) -> [u8; SERIALIZED_SSID_LEN] {
+    pub fn as_bytes(&self) -> [u8; SERIALIZED_SSID_LEN] {
         let mut bytes = [0u8; SERIALIZED_SSID_LEN];
 
         let ssid_bytes = self.ssid.as_bytes();
 
-        for i in 0..SERIALIZED_SSID_LEN {
+        for i in 0..SHORT_SSID_LEN {
             bytes[i] = *ssid_bytes.get(i).unwrap_or(&0u8);
         }
-        bytes[SERIALIZED_SSID_LEN - 1] = self.rssi as u8;
+        bytes[SERIALIZED_SSID_LEN - 2] = self.rssi as u8;
+
+        // SERIALIZED_SSID_LEN - 1 - for security type
+        bytes[SERIALIZED_SSID_LEN - 1] = auth_method_to_u8(self.auth_method);
 
         bytes
     }

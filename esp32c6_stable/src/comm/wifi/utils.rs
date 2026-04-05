@@ -4,6 +4,7 @@ use embassy_net::IpAddress;
 use embassy_net::dns::DnsQueryType;
 use log::{*};
 use embassy_net::{Ipv4Cidr, Ipv6Cidr};
+use esp_radio::wifi::AuthMethod;
 use crate::comm::wifi::models::WifiConnectionType;
 use crate::errors::wifi_error::{DNSError, WifiError};
 
@@ -44,5 +45,36 @@ pub async fn apply_ip_config(stack: &Stack<'static>, connection_type: WifiConnec
             };
             stack.set_config_v6(ConfigV6::Static(static_config));
         }
+    }
+}
+
+
+pub fn auth_method_to_u8(auth_method: AuthMethod) -> u8 {
+    match auth_method {
+        AuthMethod::None => 0,
+        AuthMethod::Wep => 1,
+        AuthMethod::Wpa => 2,
+        AuthMethod::Wpa2Personal => 3,
+        AuthMethod::WpaWpa2Personal => 4,
+        AuthMethod::Wpa2Enterprise => 5,
+        AuthMethod::Wpa3Personal => 6,
+        AuthMethod::Wpa2Wpa3Personal => 7,
+        AuthMethod::WapiPersonal => 8,
+        _ => 0,
+    }
+}
+
+pub fn auth_method_from_u8(auth_method: u8) -> AuthMethod {
+    match auth_method {
+        0 => AuthMethod::None,
+        1 => AuthMethod::Wep,
+        2 => AuthMethod::Wpa,
+        3 => AuthMethod::Wpa2Personal,
+        4 => AuthMethod::WpaWpa2Personal,
+        5 => AuthMethod::Wpa2Enterprise,
+        6 => AuthMethod::Wpa3Personal,
+        7 => AuthMethod::Wpa2Wpa3Personal,
+        8 => AuthMethod::WapiPersonal,
+        _ => AuthMethod::None,
     }
 }

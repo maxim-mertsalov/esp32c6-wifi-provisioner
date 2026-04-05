@@ -64,7 +64,7 @@ pub struct GeneralService {
     wifi_get_status: u8, // 0 - Idle, 1 - Scanning, 2 - Connected
 
     // Wi-Fi scanning
-    #[characteristic(uuid = ble_gatt_server_uuids::WIFI_GET_PAGES_COUNT, read, notify)]
+    #[characteristic(uuid = ble_gatt_server_uuids::WIFI_GET_PAGES_COUNT, read)]
     #[descriptor(uuid = descriptors::CHARACTERISTIC_USER_DESCRIPTION, read, value = "wifi_get_pages_count")]
     wifi_get_pages_count: u8,
 
