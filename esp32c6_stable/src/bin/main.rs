@@ -1,5 +1,3 @@
-//! A bluetooth battery service example built using Embassy and trouBLE.
-
 #![no_std]
 #![no_main]
 extern crate alloc;
@@ -51,7 +49,7 @@ async fn main(s: Spawner) {
     board.wifi_device = None;
     board.wifi_controller = None;
 
-    s.spawn(wifi_runner(state, wifi_controller, wifi_device, board.rng))
+    s.spawn(wifi_runner(state, wifi_controller, wifi_device, board.rng, s))
         .expect("Couldn't spawn Wi-Fi task");
 
     main_control_loop(board, state).await;

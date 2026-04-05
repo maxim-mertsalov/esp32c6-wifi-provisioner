@@ -11,7 +11,7 @@ use static_cell::StaticCell;
 use trouble_host::prelude::*;
 use crate::comm::ble::handlers::{gatt_events::gatt_events_task, notifier::custom_task};
 use crate::comm::ble::advertiser::advertise;
-use crate::comm::wifi::models::{ENTIRE_SSID_PAGE_SIZE, MAX_PASSWORD_LEN};
+use crate::comm::wifi::models::{ENTIRE_SSID_PAGE_SIZE, MAX_PASSWORD_LEN, MAX_WIFI_CONNECTION_TYPE_SIZE};
 use crate::errors::ble_error::BleError;
 use crate::prelude::AppState;
 
@@ -34,11 +34,13 @@ mod ble_gatt_server_uuids {
 
     pub const WIFI_SET_SSID_INDEX: Uuid = uuid!("824f9460-5d76-4498-a549-0020100907bc");
     pub const WIFI_SET_PASSWORD: Uuid = uuid!("273d7528-c072-4fe6-b29b-c1e468f039f2");
+    pub const WIFI_SET_CONNECTION_TYPE: Uuid = uuid!("25422a9b-558d-49f1-8db9-30bbfe8b1c2c");
     pub const WIFI_CONNECT: Uuid = uuid!("2c1f2d97-5c53-435b-940c-c36cf349ca53");
 
     pub const WIFI_DISCONNECT: Uuid = uuid!("61cd3e5f-0a78-4318-9891-f1ef74a522e3");
 
     pub const WIFI_LOCAL_TEST: Uuid = uuid!("54477984-44ea-4dbb-8740-b597f3532d9b");
+    pub const WIFI_GLOBAL_TEST: Uuid = uuid!("24b71d12-4637-4bd1-b408-e784789544f9");
 
     pub const STATUS_CODE: Uuid = uuid!("7df744c9-3a9b-4df6-80f3-ec8c3b77338e");
 }
@@ -62,7 +64,7 @@ pub struct GeneralService {
     wifi_get_status: u8, // 0 - Idle, 1 - Scanning, 2 - Connected
 
     // Wi-Fi scanning
-    #[characteristic(uuid = ble_gatt_server_uuids::WIFI_GET_PAGES_COUNT, read, notify)]
+    #[characteristic(uuid = ble_gatt_server_uuids::WIFI_GET_PAGES_COUNT, read)]
     #[descriptor(uuid = descriptors::CHARACTERISTIC_USER_DESCRIPTION, read, value = "wifi_get_pages_count")]
     wifi_get_pages_count: u8,
 
@@ -84,6 +86,11 @@ pub struct GeneralService {
     #[descriptor(uuid = descriptors::CHARACTERISTIC_USER_DESCRIPTION, read, value = "wifi_set_password")]
     wifi_set_password: [u8; MAX_PASSWORD_LEN],
 
+    #[characteristic(uuid = ble_gatt_server_uuids::WIFI_SET_CONNECTION_TYPE, write, value = [0u8; MAX_WIFI_CONNECTION_TYPE_SIZE] )]
+    #[descriptor(uuid = descriptors::CHARACTERISTIC_USER_DESCRIPTION, read, value = "wifi_set_connection_type")]
+    wifi_set_connection_type: [u8; MAX_WIFI_CONNECTION_TYPE_SIZE],
+
+    // Wi-Fi connection actions
     #[characteristic(uuid = ble_gatt_server_uuids::WIFI_CONNECT, write)]
     #[descriptor(uuid = descriptors::CHARACTERISTIC_USER_DESCRIPTION, read, value = "wifi_connect")]
     wifi_connect: bool,
@@ -98,6 +105,10 @@ pub struct GeneralService {
     #[characteristic(uuid = ble_gatt_server_uuids::WIFI_LOCAL_TEST, write)]
     #[descriptor(uuid = descriptors::CHARACTERISTIC_USER_DESCRIPTION, read, value = "wifi_local_test")]
     wifi_local_test: bool,
+
+    #[characteristic(uuid = ble_gatt_server_uuids::WIFI_GLOBAL_TEST, write)]
+    #[descriptor(uuid = descriptors::CHARACTERISTIC_USER_DESCRIPTION, read, value = "wifi_global_test")]
+    wifi_global_test: bool,
 
 
     // General fields
@@ -138,7 +149,8 @@ pub fn init_gatt_server(
     let server = BleGATTServer::new_with_config(GapConfig::Peripheral(PeripheralConfig {
         name: "ESP32 board",
         appearance: &appearance::control_device::GENERIC_CONTROL_DEVICE,
-    })).map_err(BleError::ServerInitializationFailed).unwrap();
+    })).map_err(BleError::ServerInitializationFailed)
+        .expect("Could not initialize BLE server");
 
     let server_ref = SERVER_CELL.init(server);
 

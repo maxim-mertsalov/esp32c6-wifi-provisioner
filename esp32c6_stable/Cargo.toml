@@ -26,13 +26,7 @@ log                    = "0.4.27"
 esp-storage = { version = "0.8.1", features = ["esp32c6"] }
 embedded-storage = "0.3.1"
 
-embassy-net = { version = "0.7.1", features = [
-  "dhcpv4",
-  "log",
-  "medium-ethernet",
-  "tcp",
-  "udp",
-] }
+embassy-net = { version = "0.7.1", features = ["dhcpv4", "log", "medium-ethernet", "tcp", "udp", "icmp", "raw", "dns", "proto-ipv6"] }
 embedded-io = "0.7.1"
 embedded-io-async = "0.7.0"
 esp-alloc = "0.9.0"
