@@ -3,7 +3,7 @@ use anyhow::{anyhow, Result};
 use btleplug::platform::{Peripheral as BlePeripheral};
 use crate::repositories::Repositories;
 use crate::ble_constants;
-use crate::models::{WifiCredentials, WifiScanResult};
+use crate::models::{WifiCredentials, WifiScanResult, WifiStatus};
 
 pub struct Service {
     peripheral: Arc<BlePeripheral>,
@@ -23,15 +23,15 @@ impl Service {
         loop {
             let wifi_status = *self.repos.read(ble_constants::WIFI_GET_STATUS).await?.get(0).unwrap();
 
-            if wifi_status == 1 {
+            if wifi_status == WifiStatus::Scanning as u8 {
                 tokio::time::sleep(std::time::Duration::from_secs(1)).await;
             }
-            else if wifi_status == 0 {
+            else if wifi_status == WifiStatus::ScannedSuccessfully as u8 {
                 println!("Scan complete!");
                 break;
             }
             else {
-                return Err(anyhow!("Error: {}", wifi_status));
+                return Err(anyhow!("Error: {:?}", WifiStatus::from(wifi_status)));
             }
         }
 
@@ -76,15 +76,15 @@ impl Service {
         loop {
             let wifi_status = *self.repos.read(ble_constants::WIFI_GET_STATUS).await?.get(0).unwrap();
 
-            if wifi_status == 2 {
+            if wifi_status == WifiStatus::Connecting as u8 {
                 tokio::time::sleep(std::time::Duration::from_secs(1)).await;
             }
-            else if wifi_status < 100 {
+            else if wifi_status == WifiStatus::Connected as u8 {
                 println!("Connected! Status code: {}", wifi_status);
                 break;
             }
             else {
-                return Err(anyhow!("Error: {}", wifi_status));
+                return Err(anyhow!("Error: {:?}", WifiStatus::from(wifi_status)));
             }
         }
 
@@ -98,25 +98,33 @@ impl Service {
         Ok(())
     }
 
-    pub async fn get_wifi_status(&self) -> Result<u8> {
-        self.repos.read(ble_constants::WIFI_GET_STATUS).await?
+    pub async fn get_wifi_status(&self) -> Result<WifiStatus> {
+        let raw = self.repos.read(ble_constants::WIFI_GET_STATUS).await?
             .get(0)
             .copied()
-            .ok_or_else(|| anyhow!("Failed to read WiFi status"))
+            .ok_or_else(|| anyhow!("Failed to read WiFi status") )?;
+
+        Ok(WifiStatus::from(raw))
     }
 
     pub async fn run_local_test(&self) -> Result<()> {
         self.repos.send(ble_constants::WIFI_LOCAL_TEST, &[1u8]).await?;
 
         println!("Running local test...");
-        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
 
-        let wifi_status = *self.repos.read(ble_constants::WIFI_GET_STATUS).await?.get(0).unwrap();
-        if wifi_status < 100 {
-            println!("Success: {}", wifi_status);
-        }
-        else {
-            return Err(anyhow!("Error: {}", wifi_status));
+        loop {
+            let wifi_status = *self.repos.read(ble_constants::WIFI_GET_STATUS).await?.get(0).unwrap();
+
+            if wifi_status == WifiStatus::SendingLocalTest as u8 {
+                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            }
+            else if wifi_status == WifiStatus::LocalTestSuccess as u8 {
+                println!("Local test successfully completed: {}", wifi_status);
+                break;
+            }
+            else {
+                return Err(anyhow!("Error: {:?}", WifiStatus::from(wifi_status)));
+            }
         }
 
         Ok(())
@@ -126,14 +134,19 @@ impl Service {
          self.repos.send(ble_constants::WIFI_GLOBAL_TEST, &[1u8]).await?;
 
          println!("Running global test...");
-         tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+         loop {
+             let wifi_status = *self.repos.read(ble_constants::WIFI_GET_STATUS).await?.get(0).unwrap();
 
-         let wifi_status = *self.repos.read(ble_constants::WIFI_GET_STATUS).await?.get(0).unwrap();
-         if wifi_status < 100 {
-             println!("Success: {}", wifi_status);
-         }
-         else {
-             return Err(anyhow!("Error: {}", wifi_status));
+             if wifi_status == WifiStatus::SendingGlobalTest as u8 {
+                 tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+             }
+             else if wifi_status == WifiStatus::GlobalTestSuccess as u8 {
+                 println!("Global test successfully completed: {}", wifi_status);
+                 break;
+             }
+             else {
+                 return Err(anyhow!("Error: {:?}", WifiStatus::from(wifi_status)));
+             }
          }
 
         Ok(())

@@ -120,3 +120,67 @@ impl WifiConnectionType {
         bytes
     }
 }
+
+
+/// Taken from `esp32c6_stable` subproject
+#[derive(Debug)]
+#[repr(u8)]
+pub enum WifiStatus {
+    // No Processes = 0
+    Idle = 0,
+
+    // Processes = 1..50
+    Scanning = 1,
+    Connecting = 2,
+    Disconnecting = 3,
+    SendingLocalTest = 4,
+    SendingGlobalTest = 5,
+
+    // Statuses = 51..100
+    ScannedSuccessfully = 51,
+    Connected = 52,
+    Disconnected = 53,
+    LocalTestSuccess = 54,
+    GlobalTestSuccess = 55,
+
+    // Free codes = 101..150 & 151..200
+
+    // Errors = 201..255
+    ErrorWhileScanning = 201,
+    ErrorWhileConnecting = 202,
+    ErrorWhileDisconnecting = 203,
+    ErrorWithLocalTest = 204,
+    ErrorWithGlobalTest = 205,
+    ErrorNoScannedNetworks = 206,
+    Error = 255 // global error
+}
+
+
+impl From<u8> for WifiStatus {
+    fn from(val: u8) -> Self {
+        match val {
+            0 => WifiStatus::Idle,
+
+            1 => WifiStatus::Scanning,
+            2 => WifiStatus::Connecting,
+            3 => WifiStatus::Disconnecting,
+            4 => WifiStatus::SendingLocalTest,
+            5 => WifiStatus::SendingGlobalTest,
+
+            51 => WifiStatus::ScannedSuccessfully,
+            52 => WifiStatus::Connected,
+            53 => WifiStatus::Disconnected,
+            54 => WifiStatus::LocalTestSuccess,
+            55 => WifiStatus::ErrorWhileScanning,
+
+            201 => WifiStatus::ErrorWhileScanning,
+            202 => WifiStatus::ErrorWhileConnecting,
+            203 => WifiStatus::ErrorWhileDisconnecting,
+            204 => WifiStatus::ErrorWithLocalTest,
+            205 => WifiStatus::ErrorWithGlobalTest,
+            206 => WifiStatus::ErrorNoScannedNetworks,
+
+            _ => WifiStatus::Error,
+        }
+    }
+}
