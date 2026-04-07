@@ -75,7 +75,7 @@ pub async fn wifi_runner(
     // Connect to Wi-Fi network
     loop {
         let command_fut = app_state.wifi_command.receive();
-        let timer_fut = Timer::after_millis(100);
+        let timer_fut = Timer::after_millis(500);
 
         check_connecting_status(
             app_state,
@@ -168,7 +168,7 @@ async fn check_connecting_status(
                     *connection_started_at = Some(embassy_time::Instant::now());
                 } else {
                     error!("[WIFI_task]: Max retries reached. Giving up.");
-                    app_state.wifi_status.store(WifiStatus::Error as u8, Ordering::Relaxed);
+                    app_state.wifi_status.store(WifiStatus::ErrorWhileConnecting as u8, Ordering::Relaxed);
                     *connection_started_at = None;
                     let _ = wifi_controller.disconnect();
                 }
@@ -206,7 +206,7 @@ async fn handle_connect(
     let mode_res = wifi_controller.set_config(&client_config);
     if let Err(e) = mode_res {
         warn!("[WIFI_task]: Failed to set Wi-Fi mode: {}", e);
-        app_state.wifi_status.store(WifiStatus::Error as u8, Ordering::Relaxed);
+        app_state.wifi_status.store(WifiStatus::ErrorWhileConnecting as u8, Ordering::Relaxed);
         return;
     }
 
@@ -220,7 +220,8 @@ async fn handle_connect(
     // Connecting
     if let Err(e) = wifi_controller.connect() {
         warn!("[WIFI_task]: Could not start connection: {}", e);
-        app_state.wifi_status.store(WifiStatus::Error as u8, Ordering::Relaxed);
+        app_state.wifi_status.store(WifiStatus::ErrorWhileConnecting as u8, Ordering::Relaxed);
+        return;
     } else {
         info!("[WIFI_task]: Connection attempt started to {}...", credentials.ssid);
         *connection_started_at = Some(embassy_time::Instant::now());
@@ -234,13 +235,14 @@ async fn handle_disconnect(
     wifi_controller: &mut wifi::WifiController<'static>,
 ) {
     info!("[WIFI_task]: Disconnecting...");
+    app_state.wifi_status.store(WifiStatus::Disconnecting as u8, Ordering::Relaxed);
 
     if let Err(e) = wifi_controller.disconnect() {
         warn!("[WIFI_task]: Failed to disconnect: {}", e);
-        app_state.wifi_status.store(WifiStatus::Error as u8, Ordering::Relaxed);
+        app_state.wifi_status.store(WifiStatus::ErrorWhileDisconnecting as u8, Ordering::Relaxed);
     } else {
         info!("[WIFI_task]: Disconnected from Wi-Fi network");
-        app_state.wifi_status.store(WifiStatus::Idle as u8, Ordering::Relaxed);
+        app_state.wifi_status.store(WifiStatus::Disconnected as u8, Ordering::Relaxed);
     }
 }
 
@@ -285,12 +287,12 @@ async fn handle_scan(
 
 
             app_state.wifi_networks.sender().send(results);
-            app_state.wifi_status.store(WifiStatus::Idle as u8, Ordering::Relaxed);
+            app_state.wifi_status.store(WifiStatus::ScannedSuccessfully as u8, Ordering::Relaxed);
             info!("[WIFI_task]: Found {} networks", count_net);
         }
         Err(e) => {
             warn!("[WIFI_task]: Scan error {:?}", e);
-            app_state.wifi_status.store(WifiStatus::Error as u8, Ordering::Relaxed);
+            app_state.wifi_status.store(WifiStatus::ErrorWhileScanning as u8, Ordering::Relaxed);
         }
     }
     let heap_stats = esp_alloc::HEAP.stats();
@@ -302,6 +304,8 @@ async fn handle_test_global(
     app_state: AppState,
     stack: &Stack<'static>
 ) {
+    app_state.wifi_status.store(WifiStatus::SendingGlobalTest as u8, Ordering::Relaxed);
+
     let mut rx_buffer = [0u8; 1024];
     let mut tx_buffer = [0u8; 1024];
 
@@ -316,7 +320,7 @@ async fn handle_test_global(
 
     if let Err(e) = socket.connect(remote_endpoint).await {
         warn!("[WIFI_task]: Could not connect to remote endpoint: {:?}", e);
-        app_state.wifi_status.store(WifiStatus::ErrorNoInternet as u8, Ordering::Relaxed);
+        app_state.wifi_status.store(WifiStatus::ErrorWithGlobalTest as u8, Ordering::Relaxed);
         return;
     }
 
@@ -326,14 +330,16 @@ async fn handle_test_global(
         if let Ok(n) = socket.read(&mut response_buf).await {
             if n > 0 && core::str::from_utf8(&response_buf[..n]).unwrap_or("").contains("204") {
                 info!("[WIFI_task]: Internet OK!");
-                app_state.wifi_status.store(WifiStatus::ConnectedWithInterner as u8, Ordering::Relaxed);
+                app_state.wifi_status.store(WifiStatus::GlobalTestSuccess as u8, Ordering::Relaxed);
             }
         }
         else {
             warn!("[WIFI_task]: Error while reading internet response");
+            app_state.wifi_status.store(WifiStatus::ErrorWithGlobalTest as u8, Ordering::Relaxed);
         }
     } else {
         warn!("[WIFI_task]: Error while writing to socket");
+        app_state.wifi_status.store(WifiStatus::ErrorWithGlobalTest as u8, Ordering::Relaxed);
     }
 }
 
@@ -341,6 +347,7 @@ async fn handle_test_router(
     app_state: AppState,
     stack: &Stack<'static>
 ) {
+    app_state.wifi_status.store(WifiStatus::SendingLocalTest as u8, Ordering::Relaxed);
     // Check if Wi-Fi configured
     let Some(config) = stack.config_v4() else {
         warn!("[WIFI_task]: No IP config yet, cannot ping local");
@@ -380,7 +387,7 @@ async fn handle_test_router(
     echo_payload[7] = 0x01;
     if let Err(e) = icmp.send_to(&echo_payload, gateway).await {
         warn!("[WIFI_task]: Failed to send ICMP request: {:?}", e);
-        app_state.wifi_status.store(WifiStatus::ErrorNoConnection as u8, Ordering::Relaxed);
+        app_state.wifi_status.store(WifiStatus::ErrorWithLocalTest as u8, Ordering::Relaxed);
         return;
     }
 
@@ -390,15 +397,15 @@ async fn handle_test_router(
     })).await {
         Ok(Ok(_)) => {
             info!("[WIFI_task]: Pong received");
-            app_state.wifi_status.store(WifiStatus::Connected as u8, Ordering::Relaxed);
+            app_state.wifi_status.store(WifiStatus::LocalTestSuccess as u8, Ordering::Relaxed);
         }
         Ok(Err(e)) => {
             warn!("[WIFI_task]: ICMP error: {:?}", e);
-            app_state.wifi_status.store(WifiStatus::ErrorNoConnection as u8, Ordering::Relaxed);
+            app_state.wifi_status.store(WifiStatus::ErrorWithLocalTest as u8, Ordering::Relaxed);
         }
         Err(_) => {
             warn!("[WIFI_task]: Local ping timeout (Gateway unreachable)");
-            app_state.wifi_status.store(WifiStatus::ErrorNoConnection as u8, Ordering::Relaxed);
+            app_state.wifi_status.store(WifiStatus::ErrorWithLocalTest as u8, Ordering::Relaxed);
         }
     }
 
