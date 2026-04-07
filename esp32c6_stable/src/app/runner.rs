@@ -51,7 +51,7 @@ pub async fn runner_task(app_state: AppState) {
                     .unwrap_or(Vec::new());
 
                 if wifi_networks.is_empty() {
-                    app_state.wifi_status.store(WifiStatus::ErrorNoScanning as u8, Ordering::Relaxed);
+                    app_state.wifi_status.store(WifiStatus::ErrorNoScannedNetworks as u8, Ordering::Relaxed);
                 } else {
                     let scan = &wifi_networks.get(index as usize);
 

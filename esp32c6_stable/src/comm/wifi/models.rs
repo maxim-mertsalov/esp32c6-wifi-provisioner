@@ -110,17 +110,31 @@ impl WifiScanResult {
 
 #[repr(u8)]
 pub enum WifiStatus {
-    Idle = 0, /// Or Success in scanning
+    // No Processes = 0
+    Idle = 0,
+
+    // Processes = 1..50
     Scanning = 1,
     Connecting = 2,
-    ConnectedWithoutInternet = 3,
-    Connected = 4,
-    ConnectedWithInterner = 5,
+    Disconnecting = 3,
+    SendingLocalTest = 4,
+    SendingGlobalTest = 5,
 
-    ErrorNoInternet = 250,
-    ErrorNoConnection = 251,
-    ErrorConnectionFailed = 252,
-    ErrorIncorrectPassword = 253,
-    ErrorNoScanning = 254,
-    Error = 255
+    // Statuses = 51..100
+    ScannedSuccessfully = 51,
+    Connected = 52,
+    Disconnected = 53,
+    LocalTestSuccess = 54,
+    GlobalTestSuccess = 55,
+
+    // Free codes = 101..150 & 151..200
+
+    // Errors = 201..255
+    ErrorWhileScanning = 201,
+    ErrorWhileConnecting = 202,
+    ErrorWhileDisconnecting = 203,
+    ErrorWithLocalTest = 204,
+    ErrorWithGlobalTest = 205,
+    ErrorNoScannedNetworks = 206,
+    Error = 255 // global error
 }
